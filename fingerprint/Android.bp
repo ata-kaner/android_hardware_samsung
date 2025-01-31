@@ -10,6 +10,9 @@ cc_library_static {
     cflags: select(soong_config_variable("samsung_udfps", "udfps_zorder"), {
         any @ zorder: ["-DFOD_PRESSED_LAYER_ZORDER=" + zorder],
         default: [],
+    }) + select(soong_config_variable("samsung_udfps", "dim_layer_zorder"), {
+        any @ dim_layer_zorder: ["-DFOD_DIM_LAYER_ZORDER=" + dim_layer_zorder],
+        default: [],
     }),
     include_dirs: [
         "frameworks/native/services/surfaceflinger/CompositionEngine/include",

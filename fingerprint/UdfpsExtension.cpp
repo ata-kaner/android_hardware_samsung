@@ -8,6 +8,9 @@
 #include <compositionengine/UdfpsExtension.h>
 
 uint32_t getUdfpsDimZOrder(uint32_t z) {
+#ifdef FOD_DIM_LAYER_ZORDER
+    z |= FOD_DIM_LAYER_ZORDER;
+#endif
     return z;
 }
 
