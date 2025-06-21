@@ -40,6 +40,14 @@ Session::Session(LegacyHAL hal, int userId, std::shared_ptr<ISessionCallback> cb
       mLockoutTracker(lockoutTracker),
       mUserId(userId),
       mCb(cb) {
+
+    std::string sensorTypeProp = FingerprintHalProperties::type().value_or("");
+    if (sensorTypeProp == "udfps_optical" || sensorTypeProp == "udfps") {
+        auto sehInput = getSehSysInputDev();
+        mSecUdfpsHelper = std::make_unique<SecUdfpsHelper>(sehInput);
+        LOG(INFO) << "SecUdfpsHelper has been initialized";
+    }
+
     mDeathRecipient = AIBinder_DeathRecipient_new(onClientDeath);
 
     char filename[64];
