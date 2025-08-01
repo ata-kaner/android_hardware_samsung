@@ -55,8 +55,7 @@ int SamsungCameraModule::sehGetDeviceVersion(int cameraId) {
 int SamsungCameraModule::getConcurrentStreamingCameraIds(uint32_t *pConcCamArrayLength,
                                                   concurrent_camera_combination_t**  ppConcCamArray) {
     int res = INVALID_OPERATION;
-    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_5 &&
-        mModule->get_concurrent_streaming_camera_ids != NULL) {
+    if (mModule->get_concurrent_streaming_camera_ids != NULL) {
         ATRACE_BEGIN("camera_module->get_concurrent_streaming_camera_ids");
         res = mModule->get_concurrent_streaming_camera_ids(pConcCamArrayLength, ppConcCamArray);
         ATRACE_END();
@@ -67,8 +66,7 @@ int SamsungCameraModule::getConcurrentStreamingCameraIds(uint32_t *pConcCamArray
 int SamsungCameraModule::isConcurrentStreamCombinationSupported(const std::vector<cameraid_stream_combination_t>& rCameraIdStreamComboVec)
 {
     int res = INVALID_OPERATION;
-    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_5 &&
-        mModule->is_concurrent_stream_combination_supported != NULL) {
+    if (mModule->is_concurrent_stream_combination_supported != NULL) {
         ATRACE_BEGIN("camera_module->is_concurrent_stream_combination_supported");
         res = mModule->is_concurrent_stream_combination_supported(rCameraIdStreamComboVec.size(), rCameraIdStreamComboVec.data());
         ATRACE_END();
