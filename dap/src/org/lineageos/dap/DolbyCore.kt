@@ -27,7 +27,7 @@ object DolbyCore {
     private const val EFFECT_PARAM_PROFILE = 0
     private const val EFFECT_PARAM_EFF_ENAB = 19
 
-    private val EFFECT_TYPE_DAP = UUID.fromString("46d279d9-9be7-453d-9d7c-ef937f675587")
+    private val EFFECT_TYPE_DAP = UUID.fromString("9d4921da-8225-4f29-aefa-39537a04bcaa")
 
     const val PROFILE_AUTO = 0
     const val PROFILE_MOVIE = 1
