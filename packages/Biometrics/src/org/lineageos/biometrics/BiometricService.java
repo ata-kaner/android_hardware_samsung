@@ -522,15 +522,23 @@ public class BiometricService extends Service
      * @param value one of {@link #FOD_FAST}, {@link #FOD_STRICT}, or {@link #FOD_OFF}
      */
     private void sendFodCommand(String value) {
+        value =  SET_FOD_ENABLE + "," + value;
+        sendTspCommand(value);
+    }
+
+    /**
+     * Send a command to the touchscreen HAL.
+     */
+    private void sendTspCommand(String value) {
         if (mSysInputHal == null) {
-            Log.w(TAG, "HAL not connected, cannot send FoD=" + value);
+            Log.w(TAG, "HAL not connected, cannot send CMD=" + value);
             return;
         }
         try {
-            int ret = mSysInputHal.setProperty(TYPE_DEFAULT_TSP, PROPERTY_CMD, SET_FOD_ENABLE + "," + value);
-            Log.d(TAG, "setProperty(TSP, FOD, " + SET_FOD_ENABLE + "," +value + ") = " + ret);
+            int ret = mSysInputHal.setProperty(TYPE_DEFAULT_TSP, PROPERTY_CMD, value);
+            Log.d(TAG, "setProperty(TSP, FOD, " + value + ") = " + ret);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to set FoD property", e);
+            Log.e(TAG, "Failed to set CMD property", e);
         }
     }
 
