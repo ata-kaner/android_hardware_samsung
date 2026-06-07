@@ -1,0 +1,21 @@
+//
+// SPDX-FileCopyrightText: 2026 The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+android_app {
+    name: "SamsungBiometrics",
+    srcs: [
+        "src/**/*.java",
+    ],
+
+    static_libs: [
+        "vendor.samsung.hardware.sysinput-V2-java",
+    ],
+
+    certificate: "platform",
+    platform_apis: true,
+    privileged: true,
+    system_ext_specific: true,
+    privapp_allowlist: "org.lineageos.biometrics.xml",
+}
