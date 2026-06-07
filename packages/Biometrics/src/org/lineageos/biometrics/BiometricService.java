@@ -298,6 +298,9 @@ public class BiometricService extends Service
         connectToHal();
         registerAllObservers();
 
+        // Send SET_FOD_ICON_VISIBLE command, just to be sure everything is fine
+        sendTspCommand(SET_FOD_ICON_VISIBLE + ",1");
+
         // Register biometric state listener
         mBioStateListener = new BioStateListener(this, this);
         mBioStateListener.register();
