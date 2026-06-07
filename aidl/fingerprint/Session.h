@@ -11,8 +11,6 @@
 
 #include <hardware/fingerprint.h>
 
-#include <tspcmd.h>
-
 #include "LegacyHAL.h"
 #include "LockoutTracker.h"
 
@@ -101,8 +99,6 @@ class Session : public BnSession {
     AIBinder_DeathRecipient* mDeathRecipient;
 
     DisplayState mDisplayState;
-    TspCmdHandler mTspCmdHandler;
-    bool mIsUdfps;
 };
 
 }  // namespace fingerprint
