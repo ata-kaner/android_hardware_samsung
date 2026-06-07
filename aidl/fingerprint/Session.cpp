@@ -12,6 +12,7 @@
 #include <fingerprint.sysprop.h>
 
 #include <android-base/logging.h>
+#include <cutils/properties.h>
 
 #include <dirent.h>
 #include <endian.h>
@@ -244,6 +245,11 @@ ndk::ScopedAStatus Session::detectInteractionWithContext(
 }
 
 ndk::ScopedAStatus Session::onPointerDownWithContext(const PointerContext& context) {
+    // Signal SamsungBiometrics to switch FoD to fast mode during AoD
+    if (context.isAod) {
+        property_set("vendor.fingerprint.gesture", "1");
+    }
+
     int screenOffPressDelayMs = FingerprintHalProperties::screen_off_press_delay().value_or(0);
 
     if (screenOffPressDelayMs > 0) {
