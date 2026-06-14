@@ -1,0 +1,17 @@
+//
+// Copyright (C) 2025 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+java_library {
+    name: "secinputdev-service",
+    installable: true,
+    srcs: [
+        "src/**/*.java",
+    ],
+
+    static_libs: [
+        "vendor.samsung.hardware.sysinput-V2-java",
+    ],
+}
