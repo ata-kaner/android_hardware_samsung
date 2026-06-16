@@ -89,6 +89,19 @@ ndk::ScopedAStatus FastCharge::setFastChargeMode(FastChargeMode in_mode,
     return getFastChargeMode(_aidl_return);
 }
 
+binder_status_t FastCharge::dump(int fd, const char** /*args*/, uint32_t /*numArgs*/) {
+    int64_t supportedFastChargeModes;
+    getSupportedFastChargeModes(&supportedFastChargeModes);
+
+    FastChargeMode fastChargeMode;
+    getFastChargeMode(&fastChargeMode);
+
+    dprintf(fd, "Fast charge supported modes: %ld\n", static_cast<long>(supportedFastChargeModes));
+    dprintf(fd, "Fast charge mode: %d\n", static_cast<int>(fastChargeMode));
+
+    return STATUS_OK;
+}
+
 }  // namespace health
 }  // namespace lineage
 }  // namespace vendor

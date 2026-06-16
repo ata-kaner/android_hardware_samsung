@@ -24,6 +24,8 @@ class FastCharge : public BnFastCharge {
     ndk::ScopedAStatus setFastChargeMode(FastChargeMode in_mode,
                                          FastChargeMode* _aidl_return) override;
 
+    binder_status_t dump(int fd, const char** args, uint32_t numArgs) override;
+
   private:
     int32_t mSupportedModes;
 };
