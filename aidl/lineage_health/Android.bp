@@ -13,10 +13,11 @@ cc_binary {
         "service.cpp",
         "ChargingControl.cpp",
         "FastCharge.cpp",
+        "WirelessFastCharge.cpp",
     ],
     shared_libs: [
         "libbase",
         "libbinder_ndk",
-        "vendor.lineage.health-V2-ndk",
+        "vendor.lineage.health-V3-ndk",
     ],
 }

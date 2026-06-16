@@ -5,6 +5,7 @@
 
 #include "ChargingControl.h"
 #include "FastCharge.h"
+#include "WirelessFastCharge.h"
 
 #include <android-base/logging.h>
 #include <android/binder_manager.h>
@@ -12,11 +13,13 @@
 
 using ::aidl::vendor::lineage::health::ChargingControl;
 using ::aidl::vendor::lineage::health::FastCharge;
+using ::aidl::vendor::lineage::health::WirelessFastCharge;
 
 int main() {
     ABinderProcess_setThreadPoolMaxThreadCount(0);
     std::shared_ptr<ChargingControl> lh = ndk::SharedRefBase::make<ChargingControl>();
     std::shared_ptr<FastCharge> fc = ndk::SharedRefBase::make<FastCharge>();
+    std::shared_ptr<WirelessFastCharge> wfc = ndk::SharedRefBase::make<WirelessFastCharge>();
 
     std::string instance = std::string() + ChargingControl::descriptor + "/default";
     binder_status_t status = AServiceManager_addService(lh->asBinder().get(), instance.c_str());
@@ -24,6 +27,10 @@ int main() {
 
     instance = std::string() + FastCharge::descriptor + "/default";
     status = AServiceManager_addService(fc->asBinder().get(), instance.c_str());
+    CHECK_EQ(status, STATUS_OK);
+
+    instance = std::string() + WirelessFastCharge::descriptor + "/default";
+    status = AServiceManager_addService(wfc->asBinder().get(), instance.c_str());
     CHECK_EQ(status, STATUS_OK);
 
     ABinderProcess_joinThreadPool();
