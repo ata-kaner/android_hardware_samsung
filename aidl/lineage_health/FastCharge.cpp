@@ -16,13 +16,12 @@ namespace vendor {
 namespace lineage {
 namespace health {
 
-FastCharge::FastCharge() : mSupportedModes(0) {
+FastCharge::FastCharge() : mSupportedModes(static_cast<int64_t>(FastChargeMode::NONE)) {
     if (!access(AFC_DISABLE_NODE, F_OK))
-        mSupportedModes |= static_cast<int32_t>(FastChargeMode::NONE) |
-                           static_cast<int32_t>(FastChargeMode::FAST_CHARGE);
+        mSupportedModes |= static_cast<int64_t>(FastChargeMode::FAST_CHARGE);
 
     if (!access(PD_DISABLE_NODE, F_OK))
-        mSupportedModes |= static_cast<int32_t>(FastChargeMode::SUPER_FAST_CHARGE);
+        mSupportedModes |= static_cast<int64_t>(FastChargeMode::SUPER_FAST_CHARGE);
 }
 
 ndk::ScopedAStatus FastCharge::getSupportedFastChargeModes(int64_t* _aidl_return) {
@@ -43,15 +42,19 @@ ndk::ScopedAStatus FastCharge::getFastChargeMode(FastChargeMode* _aidl_return) {
     if (afcDisableContent == "1") {
         *_aidl_return = FastChargeMode::NONE;
         return ndk::ScopedAStatus::ok();
-    } else if (afcDisableContent == "0")
+    } else if (afcDisableContent == "0") {
         *_aidl_return = FastChargeMode::FAST_CHARGE;
-    else
+    } else {
         LOG(ERROR) << "Invalid afc_disable value read: " << afcDisableContent;
+        return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+    }
 
     std::string pdDisableContent;
     if (android::base::ReadFileToString(PD_DISABLE_NODE, &pdDisableContent, true)) {
         pdDisableContent = android::base::Trim(pdDisableContent);
-        if (pdDisableContent == "0") *_aidl_return = FastChargeMode::SUPER_FAST_CHARGE;
+        if (pdDisableContent == "0") {
+            *_aidl_return = FastChargeMode::SUPER_FAST_CHARGE;
+        }
     }
 
     return ndk::ScopedAStatus::ok();
@@ -66,7 +69,7 @@ ndk::ScopedAStatus FastCharge::getFastChargeMode(FastChargeMode* _aidl_return) {
 
 ndk::ScopedAStatus FastCharge::setFastChargeMode(FastChargeMode in_mode,
                                                  FastChargeMode* _aidl_return) {
-    if (!(static_cast<int32_t>(in_mode) & mSupportedModes)) {
+    if (!(static_cast<int64_t>(in_mode) & mSupportedModes)) {
         LOG(ERROR) << "Mode " << toString(in_mode) << " not supported!";
         return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
     }

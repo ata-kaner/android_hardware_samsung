@@ -27,7 +27,7 @@ class FastCharge : public BnFastCharge {
     binder_status_t dump(int fd, const char** args, uint32_t numArgs) override;
 
   private:
-    int32_t mSupportedModes;
+    int64_t mSupportedModes;
 };
 
 }  // namespace health
