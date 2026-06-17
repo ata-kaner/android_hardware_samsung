@@ -293,7 +293,6 @@ public class BiometricService extends Service
         mKeyguardManager = getSystemService(KeyguardManager.class);
         mDisplayManager = getSystemService(DisplayManager.class);
 
-        startForegroundNotification();
         readSensorAreaFromSysFs();
         connectToHal();
         registerAllObservers();
@@ -736,28 +735,5 @@ public class BiometricService extends Service
         } catch (Exception e) {
             Log.e(TAG, "setFodRect failed", e);
         }
-    }
-
-    // ========================================================================
-    // Foreground notification (minimal, required for Android 14+)
-    // ========================================================================
-
-    private void startForegroundNotification() {
-        NotificationManager nm = getSystemService(NotificationManager.class);
-
-        NotificationChannel channel = new NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "Biometric Service",
-                NotificationManager.IMPORTANCE_MIN);
-        channel.setShowBadge(false);
-        nm.createNotificationChannel(channel);
-
-        Notification notification = new Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
-                .setContentTitle("Samsung Biometrics")
-                .setSmallIcon(android.R.drawable.ic_lock_lock)
-                .setOngoing(true)
-                .build();
-
-        startForeground(1, notification);
     }
 }

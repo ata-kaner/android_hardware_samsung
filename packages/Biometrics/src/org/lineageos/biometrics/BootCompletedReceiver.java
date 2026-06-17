@@ -19,7 +19,7 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             Log.i(TAG, "Boot completed: starting SamsungBiometricService");
 
             Intent serviceIntent = new Intent(context, BiometricService.class);
-            context.startForegroundService(serviceIntent);
+            context.startService(serviceIntent);
         }
     }
 }
