@@ -17,11 +17,11 @@ namespace lineage {
 namespace health {
 
 FastCharge::FastCharge() : mSupportedModes(0) {
-    if (!access(AFC_DISABLE_NODE, O_RDWR))
+    if (!access(AFC_DISABLE_NODE, F_OK))
         mSupportedModes |= static_cast<int32_t>(FastChargeMode::NONE) |
                            static_cast<int32_t>(FastChargeMode::FAST_CHARGE);
 
-    if (!access(PD_DISABLE_NODE, O_RDWR))
+    if (!access(PD_DISABLE_NODE, F_OK))
         mSupportedModes |= static_cast<int32_t>(FastChargeMode::SUPER_FAST_CHARGE);
 }
 
