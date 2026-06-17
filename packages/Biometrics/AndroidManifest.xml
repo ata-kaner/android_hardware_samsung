@@ -12,9 +12,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE"/>
 
-    <!-- needed to talk to system services -->
-    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN"/>
-
     <application
         android:label="SamsungBiometrics"
         android:persistent="true">
@@ -30,8 +27,6 @@
 
         <service
             android:name="org.lineageos.biometrics.BiometricService"
-            android:exported="true"
-            android:permission="BiometricService">
-        </service>
+            android:exported="false" />
     </application>
 </manifest>
