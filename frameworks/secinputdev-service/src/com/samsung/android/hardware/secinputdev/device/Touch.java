@@ -3,10 +3,8 @@ package com.samsung.android.hardware.secinputdev.device;
 import android.util.Log;
 import com.samsung.android.hardware.secinputdev.utils.SemInputConstants;
 import com.samsung.android.hardware.secinputdev.utils.SemInputDumpsysData;
-import com.samsung.android.hardware.secinputdev.utils.SemInputFeatures;
 import com.samsung.android.hardware.secinputdev.utils.Utilities;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map;
 
 public class Touch extends SemInputDevice {
@@ -58,9 +56,6 @@ public class Touch extends SemInputDevice {
         super(name, devid, feature, cmdlist);
         this.supportCommands = new HashMap();
         this.stringBuilderForSupportCommands = new StringBuilder();
-        if (!SemInputFeatures.USE_CMDTHREAD) {
-            this.pendingQueue = new LinkedList();
-        }
         setCommands();
         Log.i(this.TAG, "supportCommands: " + this.supportCommands);
     }
