@@ -34,19 +34,20 @@ import android.view.WindowManagerGlobal;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 
-import vendor.samsung.hardware.sysinput.ISehSysInputDev;
+import com.samsung.android.hardware.secinputdev.ISemInputDeviceManager;
+import com.samsung.android.hardware.secinputdev.utils.SemInputConstants;
 
 /**
  * System service that manages Samsung Fingerprint-on-Display (FoD) mode
  * by coordinating screen state, keyguard state, AoD, and fingerprint
- * gestures through the SysInput HAL.
+ * gestures through the SemInputDeviceManagerService framework.
  *
  * <p>FoD state machine:
  * <pre>
- *   DISABLED      → "0"     — FoD off
- *   SCREEN_ON_FAST→ "1,1,0" — Screen on, biometric possible (keyguard locked)
- *   AOD_STRICT    → "1,0,0" — AoD, distinguishing FP from SingleTap
- *   AOD_FAST      → "1,1,0" — AoD, fast capture after FP gesture (5s burst)
+ *   DISABLED      → setFodEnable(0,0,0,0) — FoD off
+ *   SCREEN_ON_FAST→ setFodEnable(1,1,0,0) — Screen on, biometric possible (keyguard locked)
+ *   AOD_STRICT    → setFodEnable(1,0,0,0) — AoD, distinguishing FP from SingleTap
+ *   AOD_FAST      → setFodEnable(1,1,0,0) — AoD, fast capture after FP gesture (5s burst)
  * </pre>
  *
  * <p>Fingerprint gesture detection in AoD is triggered via the broadcast:
@@ -57,32 +58,15 @@ public class BiometricService extends Service
     private static final String TAG = "SB_Service";
 
     // ========================================================================
-    // HAL constants (Reference: SemInputConstanst.java)
+    // Framework service name
     // ========================================================================
 
-    /** Device type: primary touchscreen */
-    private static final int TYPE_DEFAULT_TSP = 1;
+    private static final String SERVICE_NAME = "sem_input_device_manager";
 
-    /** Property ID 18 maps to the "cmd" sysfs node which controls TSP commands */
-    private static final int PROPERTY_CMD = 18;
+    // ========================================================================
+    // SysFS path for fingerprint sensor position data
+    // ========================================================================
 
-    /** Command prefixes for FoD operations */
-    private static final String SET_FOD_ENABLE = "fod_enable";
-    private static final String SET_FOD_ICON_VISIBLE = "fod_icon_visible";
-    private static final String SET_FOD_LP_MODE = "fod_lp_mode";
-    private static final String SET_FOD_RECT = "set_fod_rect";
-
-    /**
-     * FOD value format: "mode,pressFast,strictMode"
-     *   Fast mode  = "1,1,0" — low latency, ultrasonic FP capture
-     *   Strict mode= "1,0,0" — distinguishes FP press from single-tap gesture
-     *   Disabled   = "0"
-     */
-    private static final String FOD_FAST = "1,1,0";
-    private static final String FOD_STRICT = "1,0,0";
-    private static final String FOD_OFF = "0";
-
-    /** SysFS path for fingerprint sensor position data */
     private static final String SYSFS_FP_POSITION =
             "/sys/class/fingerprint/fingerprint/position";
 
@@ -95,7 +79,6 @@ public class BiometricService extends Service
     private double mSensorMarginBottom = 13.77;
     private double mSensorMarginLeft = 0;
     private double mSensorActiveArea = 14.80;
-    private boolean mFodRectSent = false;
 
     // ========================================================================
     // Timing
@@ -107,11 +90,11 @@ public class BiometricService extends Service
     /** Delay after SCREEN_OFF before evaluating display state (let DOZE settle) */
     private static final long SCREEN_OFF_SETTLE_MS = 500;
 
-    /** Delay before retrying HAL connection */
-    private static final long HAL_RETRY_MS = 5000;
+    /** Delay before retrying service connection */
+    private static final long SERVICE_RETRY_MS = 5000;
 
-    /** Delay before retrying HAL connection after death */
-    private static final long HAL_DEATH_RETRY_MS = 2000;
+    /** Delay before retrying service connection after death */
+    private static final long SERVICE_DEATH_RETRY_MS = 2000;
 
     // ========================================================================
     // Settings & intents
@@ -143,13 +126,13 @@ public class BiometricService extends Service
     // ========================================================================
 
     private enum FodState {
-        /** FoD disabled — HAL value "0" */
+        /** FoD disabled */
         DISABLED,
-        /** Screen on, keyguard locked — HAL value "1,1,0" (fast) */
+        /** Screen on, keyguard locked — fast capture */
         SCREEN_ON_FAST,
-        /** AoD, awaiting FP gesture — HAL value "1,0,0" (strict) */
+        /** AoD, awaiting FP gesture — strict (distinguishes FP from SingleTap) */
         AOD_STRICT,
-        /** AoD, FP gesture detected, 5s fast burst — HAL value "1,1,0" (fast) */
+        /** AoD, FP gesture detected, 5s fast burst */
         AOD_FAST
     }
 
@@ -164,10 +147,10 @@ public class BiometricService extends Service
     private static final int BIO_STATE_IDLE = 0;
 
     // ========================================================================
-    // System services & HAL
+    // System services & framework service
     // ========================================================================
 
-    private ISehSysInputDev mSysInputHal;
+    private ISemInputDeviceManager mSemInputService;
     private KeyguardManager mKeyguardManager;
     private DisplayManager mDisplayManager;
     private IBinder.DeathRecipient mDeathRecipient;
@@ -294,11 +277,11 @@ public class BiometricService extends Service
         mDisplayManager = getSystemService(DisplayManager.class);
 
         readSensorAreaFromSysFs();
-        connectToHal();
+        connectToService();
         registerAllObservers();
 
-        // Send SET_FOD_ICON_VISIBLE command, just to be sure everything is fine
-        sendTspCommand(SET_FOD_ICON_VISIBLE + ",1");
+        // Ensure the FoD icon is visible on start
+        setFodIconVisible(true);
 
         // Register biometric state listener
         mBioStateListener = new BioStateListener(this, this);
@@ -322,7 +305,7 @@ public class BiometricService extends Service
             mBioStateListener.unregister();
         }
         unregisterAllObservers();
-        disconnectFromHal();
+        disconnectFromService();
         super.onDestroy();
     }
 
@@ -388,7 +371,7 @@ public class BiometricService extends Service
 
     /**
      * Execute a state transition: update internal state, cancel stale timers,
-     * and send the corresponding HAL command.
+     * and send the corresponding framework command.
      */
     private void transitionToState(FodState newState) {
         FodState oldState = mCurrentState;
@@ -399,23 +382,24 @@ public class BiometricService extends Service
             mHandler.removeCallbacks(mAodFastTimeout);
         }
 
-        String fodValue;
+        int mode, pressFast, strictMode;
         switch (newState) {
             case SCREEN_ON_FAST:
             case AOD_FAST:
-                fodValue = FOD_FAST;
+                mode = 1; pressFast = 1; strictMode = 0;
                 break;
             case AOD_STRICT:
-                fodValue = FOD_STRICT;
+                mode = 1; pressFast = 0; strictMode = 0;
                 break;
             case DISABLED:
             default:
-                fodValue = FOD_OFF;
+                mode = 0; pressFast = 0; strictMode = 0;
                 break;
         }
 
-        Log.i(TAG, "FoD: " + oldState + " -> " + newState + " [" + fodValue + "]");
-        sendFodCommand(fodValue);
+        Log.i(TAG, "FoD: " + oldState + " -> " + newState
+                + " [" + mode + "," + pressFast + "," + strictMode + "]");
+        sendFodEnable(mode, pressFast, strictMode);
     }
 
     // ========================================================================
@@ -470,91 +454,101 @@ public class BiometricService extends Service
     }
 
     // ========================================================================
-    // HAL connection management
+    // Framework service connection management
     // ========================================================================
 
-    private void connectToHal() {
+    private void connectToService() {
         try {
-            IBinder binder = ServiceManager.getService(
-                    "vendor.samsung.hardware.sysinput.ISehSysInputDev/default");
+            IBinder binder = ServiceManager.getService(SERVICE_NAME);
             if (binder == null) {
-                Log.e(TAG, "SysInput HAL not found, retrying in "
-                        + HAL_RETRY_MS + "ms");
-                mHandler.postDelayed(this::connectToHal, HAL_RETRY_MS);
+                Log.e(TAG, "SemInputDeviceManagerService not found, retrying in "
+                        + SERVICE_RETRY_MS + "ms");
+                mHandler.postDelayed(this::connectToService, SERVICE_RETRY_MS);
                 return;
             }
 
-            mSysInputHal = ISehSysInputDev.Stub.asInterface(binder);
+            mSemInputService = ISemInputDeviceManager.Stub.asInterface(binder);
 
             mDeathRecipient = () -> {
-                Log.w(TAG, "SysInput HAL died, reconnecting...");
-                mSysInputHal = null;
-                mHandler.postDelayed(this::connectToHal, HAL_DEATH_RETRY_MS);
+                Log.w(TAG, "SemInputDeviceManagerService died, reconnecting...");
+                mSemInputService = null;
+                mHandler.postDelayed(this::connectToService, SERVICE_DEATH_RETRY_MS);
             };
             binder.linkToDeath(mDeathRecipient, 0);
 
-            Log.i(TAG, "Connected to SysInput HAL");
+            Log.i(TAG, "Connected to SemInputDeviceManagerService");
 
             // Send FOD rect to touchscreen on first connection
             setFodRect();
 
-            // Re-apply current state now that the HAL is (re)connected
+            // Re-apply current state now that the service is (re)connected
             reapplyCurrentState();
 
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to connect to HAL", e);
-            mHandler.postDelayed(this::connectToHal, HAL_RETRY_MS);
+            Log.e(TAG, "Failed to connect to SemInputDeviceManagerService", e);
+            mHandler.postDelayed(this::connectToService, SERVICE_RETRY_MS);
         }
     }
 
-    private void disconnectFromHal() {
-        if (mSysInputHal != null) {
+    private void disconnectFromService() {
+        if (mSemInputService != null) {
             try {
-                mSysInputHal.asBinder().unlinkToDeath(mDeathRecipient, 0);
+                mSemInputService.asBinder().unlinkToDeath(mDeathRecipient, 0);
             } catch (Exception e) {
                 Log.w(TAG, "unlinkToDeath failed", e);
             }
-            mSysInputHal = null;
+            mSemInputService = null;
         }
     }
 
     /**
-     * Send a FOD mode command to the touchscreen HAL.
+     * Send a typed FoD enable/disable command via the framework service.
      *
-     * @param value one of {@link #FOD_FAST}, {@link #FOD_STRICT}, or {@link #FOD_OFF}
+     * @param mode       1 = enable FoD, 0 = disable
+     * @param pressFast  1 = fast press detection (low latency), 0 = strict
+     * @param strictMode 0 = normal (unused by TSP; reserved for future use)
      */
-    private void sendFodCommand(String value) {
-        value =  SET_FOD_ENABLE + "," + value;
-        sendTspCommand(value);
-    }
-
-    /**
-     * Send a command to the touchscreen HAL.
-     */
-    private void sendTspCommand(String value) {
-        if (mSysInputHal == null) {
-            Log.w(TAG, "HAL not connected, cannot send CMD=" + value);
+    private void sendFodEnable(int mode, int pressFast, int strictMode) {
+        if (mSemInputService == null) {
+            Log.w(TAG, "Service not connected, cannot send FoD command");
             return;
         }
         try {
-            int ret = mSysInputHal.setProperty(TYPE_DEFAULT_TSP, PROPERTY_CMD, value);
-            Log.d(TAG, "setProperty(TSP, FOD, " + value + ") = " + ret);
+            int ret = mSemInputService.setFodEnable(mode, pressFast, strictMode, 0);
+            Log.d(TAG, "setFodEnable(" + mode + "," + pressFast + "," + strictMode + ") = " + ret);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to set CMD property", e);
+            Log.e(TAG, "Failed to set FoD enable", e);
         }
     }
 
     /**
-     * Re-send the HAL command for the current state (used after HAL reconnection).
+     * Show or hide the FoD icon via the framework service.
+     */
+    private void setFodIconVisible(boolean visible) {
+        if (mSemInputService == null) {
+            return;
+        }
+        try {
+            mSemInputService.setCommand(
+                    SemInputConstants.Device.NOT_SPECIFIED,
+                    SemInputConstants.Command.FOD_ICON_VISIBLE,
+                    visible ? "1" : "0");
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to set FoD icon visible", e);
+        }
+    }
+
+    /**
+     * Re-send the framework command for the current state (used after service reconnection).
      */
     private void reapplyCurrentState() {
         FodState state = mCurrentState;
-        // Force re-evaluation in case conditions changed while HAL was down
+        // Force re-evaluation in case conditions changed while service was down
         mCurrentState = FodState.DISABLED;
         evaluateState();
         // If evaluateState didn't change from DISABLED, explicitly apply it
         if (mCurrentState == FodState.DISABLED && state == FodState.DISABLED) {
-            sendFodCommand(FOD_OFF);
+            sendFodEnable(0, 0, 0);
         }
     }
 
@@ -686,15 +680,15 @@ public class BiometricService extends Service
 
     /**
      * Calculate the FOD sensor rectangle in screen pixels and send it to the
-     * touchscreen controller via the SysInput HAL. This tells the TSP exactly
+     * touchscreen controller via the framework service. This tells the TSP exactly
      * where the ultrasonic fingerprint sensor is located on the display.
      *
      * <p>The sensor position values from sysfs are in millimeters. We convert
      * them to pixels using: {@code mm * xdpi * (1 inch / 25.4 mm)}.
      */
     private void setFodRect() {
-        if (mSysInputHal == null) {
-            Log.w(TAG, "HAL not connected, cannot send FOD rect");
+        if (mSemInputService == null) {
+            Log.w(TAG, "Service not connected, cannot send FOD rect");
             return;
         }
 
@@ -724,13 +718,10 @@ public class BiometricService extends Service
             int right = left + rectSize;
             int bottom = top + rectSize;
 
-            String command = SET_FOD_RECT + "," + left + "," + top + "," + right + "," + bottom;
-
-            int ret = mSysInputHal.setProperty(TYPE_DEFAULT_TSP, PROPERTY_CMD, command);
+            int ret = mSemInputService.setFodRect(left, top, right, bottom);
             Log.i(TAG, "FOD rect: [" + left + "," + top + "," + right + "," + bottom
                     + "] screen=" + screenSize.x + "x" + screenSize.y
                     + " dpi=" + xdpi + " ret=" + ret);
-            mFodRectSent = true;
 
         } catch (Exception e) {
             Log.e(TAG, "setFodRect failed", e);
