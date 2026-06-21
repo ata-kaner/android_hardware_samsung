@@ -9,8 +9,8 @@ android_app {
         "src/**/*.java",
     ],
 
-    libs: [
-        "secinputdev-service",
+    static_libs: [
+        "vendor.samsung.hardware.sysinput-V2-java",
     ],
 
     certificate: "platform",
