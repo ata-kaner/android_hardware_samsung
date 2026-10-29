@@ -13,6 +13,7 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/parsedouble.h>
 #include <android-base/parseint.h>
 #include <android-base/strings.h>
 
@@ -23,6 +24,13 @@
 
 using namespace ::android::fingerprint::samsung;
 using ::aidl::android::hardware::biometrics::fingerprint::LegacyHAL;
+using ::android::base::ParseDouble;
+using ::android::base::ParseInt;
+using ::android::base::ReadFileToString;
+using ::android::base::Split;
+using ::android::base::Tokenize;
+using ::android::base::Trim;
+using ::android::base::WriteStringToFile;
 
 namespace aidl {
 namespace vendor {
@@ -113,7 +121,7 @@ SehFingerprint::~SehFingerprint() {
             break;
     }
     LOG(INFO) << "setFodEnable(" << in_mode << ") -> " << cmd;
-    android::base::WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
+    WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
     return ::ndk::ScopedAStatus::ok();
 }
 
@@ -145,24 +153,29 @@ void SehFingerprint::computeFodRect(int32_t displayWidth, int32_t displayHeight,
     bool parsedSysfs = false;
 
     std::string raw;
-    if (android::base::ReadFileToString("/sys/class/fingerprint/fingerprint/position", &raw)) {
-        std::vector<std::string> parts = android::base::Split(android::base::Trim(raw), ",");
-        if (parts.size() >= 4) {
-            try {
-                marginBottom = std::stod(parts[0]);
-                marginLeft = std::stod(parts[1]);
-                areaWidth = std::stod(parts[2]);
-                areaHeight = std::stod(parts[3]);
-                activeArea = (parts.size() >= 6) ? std::stod(parts[5]) : areaWidth;
-                imageSize = (parts.size() >= 8 && std::stod(parts[7]) > 0.0) ? std::stod(parts[7]) : areaWidth;
-                parsedSysfs = true;
-                LOG(INFO) << "Parsed sensor position from sysfs: " << raw
-                          << " (marginB=" << marginBottom << ", marginL=" << marginLeft
-                          << ", areaW=" << areaWidth << ", areaH=" << areaHeight
-                          << ", activeArea=" << activeArea << ", imageSize=" << imageSize << ")";
-            } catch (const std::exception& e) {
-                LOG(WARNING) << "Failed parsing sysfs position: " << e.what();
+    if (ReadFileToString("/sys/class/fingerprint/fingerprint/position", &raw)) {
+        std::vector<std::string> parts = Split(Trim(raw), ",");
+        if (parts.size() >= 4 &&
+            ParseDouble(parts[0], &marginBottom) &&
+            ParseDouble(parts[1], &marginLeft) &&
+            ParseDouble(parts[2], &areaWidth) &&
+            ParseDouble(parts[3], &areaHeight)) {
+            activeArea = areaWidth;
+            if (parts.size() >= 6) {
+                ParseDouble(parts[5], &activeArea);
             }
+            imageSize = areaWidth;
+            if (parts.size() >= 8) {
+                double parsedImageSize = 0.0;
+                if (ParseDouble(parts[7], &parsedImageSize) && parsedImageSize > 0.0) {
+                    imageSize = parsedImageSize;
+                }
+            }
+            parsedSysfs = true;
+            LOG(INFO) << "Parsed sensor position from sysfs: " << raw
+                      << " (marginB=" << marginBottom << ", marginL=" << marginLeft
+                      << ", areaW=" << areaWidth << ", areaH=" << areaHeight
+                      << ", activeArea=" << activeArea << ", imageSize=" << imageSize << ")";
         }
     }
 
@@ -185,13 +198,13 @@ void SehFingerprint::computeFodRect(int32_t displayWidth, int32_t displayHeight,
         // Fallback 1: ro.vendor.fingerprint.sensor_location property
         std::string loc = FingerprintHalProperties::sensor_location().value_or("");
         if (!loc.empty()) {
-            std::vector<std::string> sensors = android::base::Split(loc, ";");
+            std::vector<std::string> sensors = Split(loc, ";");
             if (!sensors.empty()) {
-                std::vector<std::string> dim = android::base::Split(sensors[0], "|");
+                std::vector<std::string> dim = Split(sensors[0], "|");
                 if (dim.size() >= 3) {
-                    android::base::ParseInt(dim[0], &sensorX);
-                    android::base::ParseInt(dim[1], &sensorY);
-                    android::base::ParseInt(dim[2], &sensorRadius);
+                    ParseInt(dim[0], &sensorX);
+                    ParseInt(dim[1], &sensorY);
+                    ParseInt(dim[2], &sensorRadius);
                     sensorImageSize = sensorRadius * 2;
                 }
             }
@@ -241,19 +254,19 @@ void SehFingerprint::computeFodRect(int32_t displayWidth, int32_t displayHeight,
                       std::to_string(in_top) + "," + std::to_string(in_right) + "," +
                       std::to_string(in_bottom);
     LOG(INFO) << "setFodRect: " << cmd;
-    android::base::WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
+    WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
     return ::ndk::ScopedAStatus::ok();
 }
 
 ::ndk::ScopedAStatus SehFingerprint::setFodIconVisible(bool in_visible) {
     std::string cmd = std::string("fod_icon_visible,") + (in_visible ? "1" : "0");
-    android::base::WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
+    WriteStringToFile(cmd, "/sys/class/sec/tsp/cmd");
     return ::ndk::ScopedAStatus::ok();
 }
 
 ::ndk::ScopedAStatus SehFingerprint::setMaskBrightness(int32_t in_brightness) {
-    android::base::WriteStringToFile(std::to_string(in_brightness),
-                                     "/sys/class/lcd/panel/mask_brightness");
+    WriteStringToFile(std::to_string(in_brightness),
+                      "/sys/class/lcd/panel/mask_brightness");
     return ::ndk::ScopedAStatus::ok();
 }
 
@@ -264,7 +277,7 @@ std::string SehFingerprint::getOpticalBrightnessConfig() {
                                  sizeof(outBuf), 0);
     if (ret > 0) {
         std::string configStr(outBuf, ret);
-        std::string trimmed = android::base::Trim(configStr);
+        std::string trimmed = Trim(configStr);
         if (!trimmed.empty()) {
             LOG(INFO) << "Optical brightness config from HAL vendor request: " << trimmed;
             return trimmed;
@@ -273,8 +286,8 @@ std::string SehFingerprint::getOpticalBrightnessConfig() {
 
     // 2. Direct sysfs fallback
     std::string content;
-    if (android::base::ReadFileToString("/sys/class/fingerprint/fingerprint/rb", &content)) {
-        std::string trimmed = android::base::Trim(content);
+    if (ReadFileToString("/sys/class/fingerprint/fingerprint/rb", &content)) {
+        std::string trimmed = Trim(content);
         if (!trimmed.empty()) {
             LOG(INFO) << "Optical brightness config from sysfs: " << trimmed;
             return trimmed;
@@ -287,10 +300,10 @@ std::string SehFingerprint::getOpticalBrightnessConfig() {
 ::ndk::ScopedAStatus SehFingerprint::getSensorTargetNits(int32_t* _aidl_return) {
     std::string config = getOpticalBrightnessConfig();
     if (!config.empty()) {
-        std::vector<std::string> parts = android::base::Split(config, ",");
+        std::vector<std::string> parts = Split(config, ",");
         if (!parts.empty()) {
             int val = 0;
-            if (android::base::ParseInt(android::base::Trim(parts[0]), &val) && val > 0) {
+            if (ParseInt(Trim(parts[0]), &val) && val > 0) {
                 LOG(INFO) << "getSensorTargetNits: " << val;
                 *_aidl_return = val;
                 return ::ndk::ScopedAStatus::ok();
@@ -304,10 +317,10 @@ std::string SehFingerprint::getOpticalBrightnessConfig() {
 ::ndk::ScopedAStatus SehFingerprint::getSensorLightColor(std::string* _aidl_return) {
     std::string config = getOpticalBrightnessConfig();
     if (!config.empty()) {
-        std::vector<std::string> parts = android::base::Split(config, ",");
+        std::vector<std::string> parts = Split(config, ",");
         // Format: "targetNits,backlightLevel,calibrationVal,colorHex[,lowBrightnessColorHex]"
         if (parts.size() > 3) {
-            std::string color = android::base::Trim(parts[3]);
+            std::string color = Trim(parts[3]);
             if (!color.empty()) {
                 LOG(INFO) << "getSensorLightColor: " << color;
                 *_aidl_return = color;
@@ -425,7 +438,7 @@ void SehFingerprint::pollerLoop() {
             ssize_t n = read(fd, buf, sizeof(buf) - 1);
             if (n > 0) {
                 buf[n] = '\0';
-                std::vector<std::string> tokens = android::base::Tokenize(buf, " \t\r\n");
+                std::vector<std::string> tokens = Tokenize(buf, " \t\r\n");
                 int event = -1;
                 for (const auto& token : tokens) {
                     if (token == "0x0F" || token == "0x0f" || token == "15") {
@@ -441,7 +454,7 @@ void SehFingerprint::pollerLoop() {
                 std::vector<int> numbers;
                 for (const auto& token : tokens) {
                     int val = 0;
-                    if (android::base::ParseInt(token, &val) && val > 0 && val != 15 &&
+                    if (ParseInt(token, &val) && val > 0 && val != 15 &&
                         val != 16 && val != 17) {
                         numbers.push_back(val);
                     }
