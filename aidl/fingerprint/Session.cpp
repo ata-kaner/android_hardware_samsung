@@ -7,6 +7,7 @@
 #include "Session.h"
 #include "CancellationSignal.h"
 #include "Legacy2Aidl.h"
+#include "SehFingerprint.h"
 #include "VendorConstants.h"
 
 #include <fingerprint.sysprop.h>
@@ -19,6 +20,8 @@
 
 using namespace ::android::fingerprint::samsung;
 using namespace ::std::chrono_literals;
+
+using ::aidl::vendor::samsung::hardware::biometrics::fingerprint::SehFingerprint;
 
 namespace aidl {
 namespace android {
@@ -204,6 +207,7 @@ ndk::ScopedAStatus Session::onPointerDown(int32_t /*pointerId*/, int32_t /*x*/, 
     }
     checkSensorLockout();
     mCb->onAcquired(AcquiredInfo::START, 0);
+    SehFingerprint::getInstance()->notifyOpticalCaptureStarted();
 
     return ndk::ScopedAStatus::ok();
 }
@@ -214,6 +218,7 @@ ndk::ScopedAStatus Session::onPointerUp(int32_t /*pointerId*/) {
     if (FingerprintHalProperties::request_touch_event().value_or(false)) {
         mHal.request(SEM_REQUEST_TOUCH_EVENT, 1);
     }
+    SehFingerprint::getInstance()->notifyOpticalCaptureFinished();
 
     return ndk::ScopedAStatus::ok();
 }
@@ -273,6 +278,7 @@ ndk::ScopedAStatus Session::setIgnoreDisplayTouches(bool /*shouldIgnore*/) {
 }
 
 ndk::ScopedAStatus Session::cancel() {
+    SehFingerprint::getInstance()->notifyOpticalCaptureFinished();
     int32_t ret = mHal.ss_fingerprint_cancel();
 
     if (ret == 0) {
@@ -400,6 +406,7 @@ void Session::lockoutTimerExpired() {
 void Session::notify(const fingerprint_msg_t* msg) {
     switch (msg->type) {
         case FINGERPRINT_ERROR: {
+            SehFingerprint::getInstance()->notifyOpticalCaptureFinished();
             int32_t vendorCode = 0;
             Error result = VendorErrorFilter(msg->data.error, &vendorCode);
             LOG(DEBUG) << "onError(" << static_cast<int>(result) << ")";
@@ -437,6 +444,7 @@ void Session::notify(const fingerprint_msg_t* msg) {
             mCb->onEnrollmentsRemoved(enrollments);
         } break;
         case FINGERPRINT_AUTHENTICATED: {
+            SehFingerprint::getInstance()->notifyOpticalCaptureFinished();
             LOG(DEBUG) << "onAuthenticated(fid=" << msg->data.authenticated.finger.fid
                        << ", gid=" << msg->data.authenticated.finger.gid << ")";
             if (msg->data.authenticated.finger.fid != 0) {

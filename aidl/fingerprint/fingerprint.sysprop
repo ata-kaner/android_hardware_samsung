@@ -85,3 +85,12 @@ prop {
     access: Readonly
     api_name: "screen_off_press_delay"
 }
+
+# target panel brightness level for optical UDFPS illumination (default: 319)
+prop {
+    prop_name: "ro.vendor.fingerprint.udfps.brightness"
+    type: Integer
+    scope: Internal
+    access: Readonly
+    api_name: "udfps_brightness"
+}
