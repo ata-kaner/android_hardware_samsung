@@ -271,20 +271,6 @@ void SehFingerprint::computeFodRect(int32_t displayWidth, int32_t displayHeight,
 }
 
 std::string SehFingerprint::getOpticalBrightnessConfig() {
-    // 1. Query vendor request 32 through LegacyHAL (matches Samsung stock behavior)
-    char outBuf[256] = {0};
-    int ret = LegacyHAL::request(SEM_REQUEST_GET_OPTICAL_BRIGHTNESS_CONFIGS, nullptr, 0, outBuf,
-                                 sizeof(outBuf), 0);
-    if (ret > 0) {
-        std::string configStr(outBuf, ret);
-        std::string trimmed = Trim(configStr);
-        if (!trimmed.empty()) {
-            LOG(INFO) << "Optical brightness config from HAL vendor request: " << trimmed;
-            return trimmed;
-        }
-    }
-
-    // 2. Direct sysfs fallback
     std::string content;
     if (ReadFileToString("/sys/class/fingerprint/fingerprint/rb", &content)) {
         std::string trimmed = Trim(content);
