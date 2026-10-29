@@ -168,7 +168,7 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         mRoot = (FrameLayout) LayoutInflater.from(mContext)
                 .inflate(R.layout.fingerprint_maskview, null);
         mDimView = mRoot.findViewById(R.id.fingerprint_maskview);
-        mDimView.setVisibility(View.INVISIBLE);
+        mDimView.setVisibility(View.VISIBLE);
         mRoot.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         mRoot.setForceDarkAllowed(false);
 

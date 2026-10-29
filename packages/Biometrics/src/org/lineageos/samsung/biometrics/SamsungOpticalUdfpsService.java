@@ -124,20 +124,14 @@ public class SamsungOpticalUdfpsService
         mFingerDown = false;
 
         stopCircleIllumination();
+        hideDimLayer();
         scheduleReleaseWakeLock(WAKELOCK_RELEASE_DEBOUNCE_MS);
-
-        if (!mDisplayStateListener.isScreenOn() || !mDisplayStateListener.isInteractive()) {
-            hideDimLayer();
-        }
     }
 
     @Override
     public void onWokeFromAod() {
         if (mDestroyed) return;
         Log.i(TAG, "Woke from AoD, bio=" + mBiometricState);
-        if (mBiometricState != 0) {
-            showDimLayer();
-        }
     }
 
     @Override
@@ -157,6 +151,7 @@ public class SamsungOpticalUdfpsService
         if (mDestroyed) return;
         Log.i(TAG, "onOpticalCaptureFinished: Immediately stopping illumination");
         stopCircleIllumination();
+        hideDimLayer();
     }
 
     // ---- Authentication Events (BioStateListener) ---------------------------
@@ -169,6 +164,7 @@ public class SamsungOpticalUdfpsService
         if (BiometricFingerprintConstants.shouldDisableUdfpsDisplayMode(acquiredInfo)) {
             Log.d(TAG, "Fingerprint image acquired (" + acquiredInfo + "); stopping illumination");
             stopCircleIllumination();
+            hideDimLayer();
         }
     }
 
@@ -179,6 +175,7 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationFailed() {
         Log.i(TAG, "Fingerprint scan failed; stopping illumination");
         stopCircleIllumination();
+        hideDimLayer();
         mBlackMaskView.hide();
     }
 
@@ -188,6 +185,7 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationError(int errorCode, String errString) {
         Log.i(TAG, "Fingerprint error (" + errorCode + ": " + errString + "); stopping illumination");
         stopCircleIllumination();
+        hideDimLayer();
         mBlackMaskView.hide();
     }
 
@@ -197,6 +195,7 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationSucceeded() {
         Log.i(TAG, "Fingerprint scan succeeded; stopping illumination");
         stopCircleIllumination();
+        hideDimLayer();
         if (mSessionStartedFromScreenOff || !mDisplayStateListener.isScreenOn()) {
             Log.i(TAG, "Authentication succeeded from Screen-Off/AOD; showing black mask");
             mBlackMaskView.show();
@@ -214,11 +213,7 @@ public class SamsungOpticalUdfpsService
                     + " (bio=" + mBiometricState + ", active=" + mSessionActive
                     + ", fingerDown=" + mFingerDown + ")");
 
-            if (displayState == Display.STATE_ON && mDisplayStateListener.isInteractive()) {
-                if (mBiometricState != 0) {
-                    showDimLayer();
-                }
-            } else if (displayState == Display.STATE_DOZE
+            if (displayState == Display.STATE_DOZE
                     || displayState == Display.STATE_DOZE_SUSPEND
                     || displayState == Display.STATE_OFF
                     || !mDisplayStateListener.isInteractive()) {
@@ -247,9 +242,6 @@ public class SamsungOpticalUdfpsService
                 mSessionStartedFromScreenOff = true;
             } else {
                 mSessionStartedFromScreenOff = false;
-            }
-            if (mDisplayStateListener.isScreenOn() && mDisplayStateListener.isInteractive()) {
-                showDimLayer();
             }
         } else {
             mFingerDown = false;
