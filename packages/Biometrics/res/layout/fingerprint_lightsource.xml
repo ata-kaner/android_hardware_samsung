@@ -14,7 +14,6 @@
     <org.lineageos.samsung.biometrics.LightSourceView
         android:id="@+id/fingerprint_lightsource_surfaceview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="invisible" />
+        android:layout_height="match_parent" />
 
 </FrameLayout>

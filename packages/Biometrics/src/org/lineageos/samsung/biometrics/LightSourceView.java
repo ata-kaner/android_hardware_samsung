@@ -81,7 +81,6 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
         mHolder.addCallback(this);
         mHolder.setFormat(PixelFormat.TRANSLUCENT);
         setZOrderOnTop(true);
-        setVisibility(INVISIBLE);
     }
 
     // -------------------------------------------------------------------------
@@ -95,8 +94,7 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
     }
 
     /**
-     * Show the white circle. Toggles visibility to VISIBLE so the Surface is allocated
-     * and SurfaceFlinger tags the touched layer with UDFPS_PRESSED_LAYER_ZORDER to engage HBM.
+     * Show the white circle. Draws the illumination circle on the transparent Surface.
      */
     public void show() {
         if (mSensorInfo == null) {
@@ -109,18 +107,17 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
             setLightSourceInfo();
         }
         mIsShown = true;
-        setVisibility(VISIBLE);
         draw();
     }
 
     /**
-     * Hide the circle. Setting INVISIBLE removes the Surface so SurfaceFlinger
-     * clears the touched layer, immediately turning off HBM.
+     * Hide the circle by clearing the canvas back to transparent.
+     * The surface remains allocated to avoid tear-down latency and GPU composition glitches.
      */
     public void hide() {
         mIsShown = false;
         mHasPendingDraw = false;
-        setVisibility(INVISIBLE);
+        draw();
     }
 
     // -------------------------------------------------------------------------
