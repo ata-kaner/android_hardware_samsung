@@ -5,10 +5,13 @@
 
 package org.lineageos.samsung.biometrics;
 
+import android.content.Context;
+import android.database.ContentObserver;
 import android.os.Build;
 import android.os.FileObserver;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 
 import java.io.File;
@@ -40,6 +43,36 @@ public final class DisplayBrightnessMonitor {
     private final List<OnBrightnessListener> mListeners = new CopyOnWriteArrayList<>();
 
     private volatile int mCurrentBrightness = -1;
+    private Context mContext;
+    private ContentObserver mContentObserver;
+
+    public void init(Context context) {
+        if (mContext != null || context == null) return;
+        mContext = context.getApplicationContext();
+
+        mContentObserver = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                int value = getBrightnessFromFile();
+                if (value >= 0) {
+                    postBrightnessChanged(value);
+                }
+            }
+        };
+
+        try {
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+                    false,
+                    mContentObserver);
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor("screen_brightness_float"),
+                    false,
+                    mContentObserver);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to register brightness content observer", e);
+        }
+    }
 
     public DisplayBrightnessMonitor(Looper looper) {
         mHandler = new Handler(looper);
@@ -66,7 +99,7 @@ public final class DisplayBrightnessMonitor {
         }
     }
 
-    private void postBrightnessChanged(int brightness) {
+    public void postBrightnessChanged(int brightness) {
         mHandler.removeCallbacksAndMessages(null);
         mHandler.post(() -> handleDisplayBrightnessChanged(brightness));
     }
@@ -148,6 +181,10 @@ public final class DisplayBrightnessMonitor {
     }
 
     public int getCurrentBrightness() {
+        int now = getBrightnessFromFile();
+        if (now >= 0) {
+            mCurrentBrightness = now;
+        }
         return mCurrentBrightness;
     }
 

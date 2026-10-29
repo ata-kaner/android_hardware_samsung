@@ -63,7 +63,7 @@ void SehFingerprint::onClientDied(void* cookie) {
 
 SehFingerprint::SehFingerprint()
     : mDeathRecipient(AIBinder_DeathRecipient_new(onClientDied)) {
-    if (pipe2(mStopPipe, O_CLOEXEC) < 0) {
+    if (pipe2(mStopPipe, O_CLOEXEC | O_NONBLOCK) < 0) {
         LOG(ERROR) << "Failed to create stop pipe";
     }
 }

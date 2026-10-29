@@ -49,6 +49,7 @@ public class SamsungBiometricService extends Service
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "SamsungBiometricService is alive");
+        DisplayBrightnessMonitor.getInstance().init(this);
         mClient = new SehFingerprintClient(mMain);
         mClient.connect();
         mBioStateListener = new BioStateListener(this, this, this);

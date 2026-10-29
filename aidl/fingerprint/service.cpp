@@ -15,7 +15,8 @@ using ::aidl::android::hardware::biometrics::fingerprint::Fingerprint;
 using ::aidl::vendor::samsung::hardware::biometrics::fingerprint::SehFingerprint;
 
 int main() {
-    ABinderProcess_setThreadPoolMaxThreadCount(0);
+    ABinderProcess_setThreadPoolMaxThreadCount(4);
+    ABinderProcess_startThreadPool();
     std::shared_ptr<Fingerprint> fingerprint = ndk::SharedRefBase::make<Fingerprint>();
 
     const std::string instance = std::string() + Fingerprint::descriptor + "/default";

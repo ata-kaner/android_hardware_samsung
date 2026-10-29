@@ -57,8 +57,10 @@ public class DebugActivity extends Activity
         maskViewToggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 mMaskView.show();
+                mMaskView.showCircle();
                 mMaskView.start();
             } else {
+                mMaskView.hideCircle();
                 mMaskView.hide();
                 mMaskView.stop();
             }

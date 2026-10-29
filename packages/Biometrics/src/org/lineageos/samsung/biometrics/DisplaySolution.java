@@ -62,39 +62,14 @@ public class DisplaySolution {
             gamma = mGammaArray[0];
         }
 
-        float currentNits = 0.0f;
-        float targetNits = 0.0f;
-
-        if (mBrightnessNitsValueStringArray != null && mBrightnessNitsValueStringArray.length > 0) {
-            int curIdx = currentBrightnessIndex;
-            int tgtIdx = Math.round(fingerPrintIndex);
-
-            if (curIdx >= 0 && curIdx < mBrightnessNitsValueStringArray.length) {
-                try {
-                    currentNits = Float.parseFloat(mBrightnessNitsValueStringArray[curIdx]);
-                } catch (NumberFormatException ignored) {}
-            } else if (curIdx >= mBrightnessNitsValueStringArray.length) {
-                try {
-                    currentNits = Float.parseFloat(
-                            mBrightnessNitsValueStringArray[mBrightnessNitsValueStringArray.length - 1]);
-                } catch (NumberFormatException ignored) {}
-            }
-
-            if (tgtIdx >= 0 && tgtIdx < mBrightnessNitsValueStringArray.length) {
-                try {
-                    targetNits = Float.parseFloat(mBrightnessNitsValueStringArray[tgtIdx]);
-                } catch (NumberFormatException ignored) {}
-            } else if (tgtIdx >= mBrightnessNitsValueStringArray.length) {
-                try {
-                    targetNits = Float.parseFloat(
-                            mBrightnessNitsValueStringArray[mBrightnessNitsValueStringArray.length - 1]);
-                } catch (NumberFormatException ignored) {}
-            }
-        }
+        float currentNits = getNitsForBacklight(currentBrightnessIndex);
+        float targetNits = getNitsForBacklight(fingerPrintIndex);
 
         // Fallback approximation if nits could not be resolved from device overlay
         if (targetNits <= 0.0f) {
             targetNits = fingerPrintIndex > 0 ? fingerPrintIndex : DEFAULT_UDFPS_BRIGHTNESS;
+        }
+        if (currentNits <= 0.0f) {
             currentNits = currentBrightnessIndex >= 0 ? currentBrightnessIndex : 127.0f;
         }
 
@@ -103,12 +78,51 @@ public class DisplaySolution {
                 + " , br_ctrl : " + brCtrl
                 + " , gamma : " + gamma);
 
-        if (targetNits == 0.0f) return 0.0f;
+        if (targetNits <= 0.0f) return 0.0f;
 
         double base = (currentNits * brCtrl) / targetNits;
         double exponent = 1.0f / gamma;
 
         return (float) (1.0d - Math.pow(base, exponent));
+    }
+
+    public float getNitsForBacklight(float backlight) {
+        if (mBrightnessNitsValueStringArray == null || mBrightnessNitsValueStringArray.length == 0) {
+            return -1.0f;
+        }
+
+        if (mBrightnessBacklightValueStringArray != null && mBrightnessBacklightValueStringArray.length > 0) {
+            int bestIdx = 0;
+            float minDiff = Float.MAX_VALUE;
+            for (int i = 0; i < mBrightnessBacklightValueStringArray.length && i < mBrightnessNitsValueStringArray.length; i++) {
+                try {
+                    float bl = Float.parseFloat(mBrightnessBacklightValueStringArray[i]);
+                    float diff = Math.abs(bl - backlight);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestIdx = i;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+            try {
+                return Float.parseFloat(mBrightnessNitsValueStringArray[bestIdx]);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // Fallback: direct index lookup
+        int idx = Math.round(backlight);
+        if (idx >= 0 && idx < mBrightnessNitsValueStringArray.length) {
+            try {
+                return Float.parseFloat(mBrightnessNitsValueStringArray[idx]);
+            } catch (NumberFormatException ignored) {}
+        } else if (idx >= mBrightnessNitsValueStringArray.length) {
+            try {
+                return Float.parseFloat(
+                        mBrightnessNitsValueStringArray[mBrightnessNitsValueStringArray.length - 1]);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        return -1.0f;
     }
 
     public final float getFingerPrintBacklightValue(int requiredNits) {

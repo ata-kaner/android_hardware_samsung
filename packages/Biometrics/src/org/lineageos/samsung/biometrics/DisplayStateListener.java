@@ -94,6 +94,10 @@ public class DisplayStateListener implements DisplayManager.DisplayListener {
     public void onDisplayChanged(int displayId) {
         if (displayId == Display.DEFAULT_DISPLAY) {
             updateState();
+            int b = DisplayBrightnessMonitor.getInstance().getBrightnessFromFile();
+            if (b >= 0) {
+                DisplayBrightnessMonitor.getInstance().postBrightnessChanged(b);
+            }
         }
     }
 

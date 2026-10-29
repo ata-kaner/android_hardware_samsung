@@ -164,6 +164,26 @@ public class BioStateListener {
             };
         }
 
+        List<FingerprintSensorPropertiesInternal> existing = mFingerprintManager.getSensorPropertiesInternal();
+        if (existing != null && !existing.isEmpty()) {
+            if (mRegistered.compareAndSet(false, true)) {
+                if (mSensorCallback != null) {
+                    try {
+                        mSensorCallback.onSensorPropertiesAvailable(existing.get(0));
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Sensor properties callback failed", t);
+                    }
+                }
+                try {
+                    mFingerprintManager.registerBiometricStateListener(mListener);
+                    Log.i(TAG, "BioStateListener registered immediately from existing properties");
+                } catch (Throwable t) {
+                    mRegistered.set(false);
+                    Log.e(TAG, "Failed to register BioStateListener", t);
+                }
+            }
+        }
+
         mFingerprintManager.addAuthenticatorsRegisteredCallback(
                 new IFingerprintAuthenticatorsRegisteredCallback.Stub() {
                     @Override

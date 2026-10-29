@@ -53,6 +53,7 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         mContext = context;
         mWm = context.getSystemService(WindowManager.class);
         mDisplayBrightnessMonitor = DisplayBrightnessMonitor.getInstance();
+        mDisplayBrightnessMonitor.init(context);
         mDisplaySolution = new DisplaySolution(context);
     }
 
@@ -94,6 +95,10 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
 
     public void showCircle() {
         mMain.post(() -> {
+            updateBackgroundColor(-1);
+            if (mDimView != null) {
+                mDimView.setVisibility(View.VISIBLE);
+            }
             if (mLightSourceView != null) {
                 mLightSourceView.show();
             }
@@ -104,6 +109,9 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         mMain.post(() -> {
             if (mLightSourceView != null) {
                 mLightSourceView.hide();
+            }
+            if (mDimView != null) {
+                mDimView.setVisibility(View.INVISIBLE);
             }
         });
     }
@@ -154,6 +162,7 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         mRoot = (FrameLayout) LayoutInflater.from(mContext)
                 .inflate(R.layout.fingerprint_maskview, null);
         mDimView = mRoot.findViewById(R.id.fingerprint_maskview);
+        mDimView.setVisibility(View.INVISIBLE);
         mRoot.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         mRoot.setForceDarkAllowed(false);
 
