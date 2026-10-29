@@ -149,6 +149,21 @@ public class SamsungOpticalUdfpsService
     public void onOpticalCaptureStarted() {
         if (mDestroyed) return;
         Log.d(TAG, "onOpticalCaptureStarted");
+        mFingerDown = true;
+        acquireWakeLock(WAKELOCK_TIMEOUT_MS);
+        if (!mDisplayStateListener.isScreenOn() || mDisplayStateListener.isDoze()
+                || !mDisplayStateListener.isInteractive()) {
+            mSessionStartedFromScreenOff = true;
+            Log.i(TAG, "Optical capture in AoD/Off -> waking display");
+            if (mPowerManager != null) {
+                mPowerManager.wakeUp(
+                        SystemClock.uptimeMillis(),
+                        PowerManager.WAKE_REASON_BIOMETRIC,
+                        "SamsungBiometrics:AoD");
+            }
+        }
+        showDimLayer();
+        startCircleIllumination();
     }
 
     @Override
@@ -226,12 +241,11 @@ public class SamsungOpticalUdfpsService
 
             if (displayState == Display.STATE_DOZE
                     || displayState == Display.STATE_DOZE_SUSPEND
-                    || displayState == Display.STATE_OFF
-                    || !mDisplayStateListener.isInteractive()) {
+                    || displayState == Display.STATE_OFF) {
                 if (!mFingerDown) {
                     hideDimLayer();
                 }
-            } else if (displayState == Display.STATE_ON && mDisplayStateListener.isInteractive()) {
+            } else if (displayState == Display.STATE_ON) {
                 if (mBiometricState != 0) {
                     showDimLayer();
                 }

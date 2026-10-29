@@ -117,7 +117,9 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
     public void hide() {
         mIsShown = false;
         mHasPendingDraw = false;
-        draw();
+        if (mHolder != null && mHolder.getSurface() != null && mHolder.getSurface().isValid()) {
+            draw();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -200,6 +202,14 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
     private void draw() {
         if (mHolder == null) {
             Slog.w(TAG, "draw: mHolder is null");
+            return;
+        }
+
+        if (mHolder.getSurface() == null || !mHolder.getSurface().isValid()) {
+            if (mIsShown) {
+                Slog.d(TAG, "draw: surface not ready, pending");
+                mHasPendingDraw = true;
+            }
             return;
         }
 

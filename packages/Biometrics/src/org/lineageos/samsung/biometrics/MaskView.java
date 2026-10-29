@@ -95,6 +95,7 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
 
     public void showCircle() {
         mMain.post(() -> {
+            ensureView();
             if (mLightSourceView != null) {
                 mLightSourceView.show();
             }

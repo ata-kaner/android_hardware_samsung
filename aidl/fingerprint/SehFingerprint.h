@@ -48,14 +48,14 @@ class SehFingerprint : public BnSehFingerprint {
     // Internal triggers from Fingerprint Session / Notify
     void notifyOpticalCaptureStarted();
     void notifyOpticalCaptureFinished();
+    void dispatchFingerDown(int32_t x, int32_t y);
+    void dispatchFingerUp();
 
   private:
     std::string getOpticalBrightnessConfig();
     void startPollerThread();
     void stopPollerThread();
     void pollerLoop();
-    void dispatchFingerDown(int32_t x, int32_t y);
-    void dispatchFingerUp();
 
     std::mutex mCallbackLock;
     std::vector<std::shared_ptr<ISehFingerprintCallback>> mCallbacks;

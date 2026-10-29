@@ -198,7 +198,7 @@ ndk::ScopedAStatus Session::close() {
     return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Session::onPointerDown(int32_t /*pointerId*/, int32_t /*x*/, int32_t /*y*/,
+ndk::ScopedAStatus Session::onPointerDown(int32_t /*pointerId*/, int32_t x, int32_t y,
                                           float /*minor*/, float /*major*/) {
     LOG(INFO) << "onPointerDown";
 
@@ -208,6 +208,7 @@ ndk::ScopedAStatus Session::onPointerDown(int32_t /*pointerId*/, int32_t /*x*/, 
     checkSensorLockout();
     mCb->onAcquired(AcquiredInfo::START, 0);
     SehFingerprint::getInstance()->notifyOpticalCaptureStarted();
+    SehFingerprint::getInstance()->dispatchFingerDown(x, y);
 
     return ndk::ScopedAStatus::ok();
 }
@@ -219,6 +220,7 @@ ndk::ScopedAStatus Session::onPointerUp(int32_t /*pointerId*/) {
         mHal.request(SEM_REQUEST_TOUCH_EVENT, 1);
     }
     SehFingerprint::getInstance()->notifyOpticalCaptureFinished();
+    SehFingerprint::getInstance()->dispatchFingerUp();
 
     return ndk::ScopedAStatus::ok();
 }

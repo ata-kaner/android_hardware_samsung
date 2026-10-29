@@ -216,7 +216,10 @@ public class FodController implements SehFingerprintClient.Listener {
     @Override
     public void onOpticalCaptureStarted() {
         if (!mRunning) return;
-        Log.d(TAG, "onOpticalCaptureStarted");
+        Log.d(TAG, "onOpticalCaptureStarted in state=" + mCurrentState);
+        if (mCurrentState == FodState.AOD_STRICT || mCurrentState == FodState.AOD_FAST) {
+            onAodPress();
+        }
         if (mFodListener != null) {
             mFodListener.onOpticalCaptureStarted();
         }
