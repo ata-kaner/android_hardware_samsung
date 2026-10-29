@@ -95,10 +95,6 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
 
     public void showCircle() {
         mMain.post(() -> {
-            updateBackgroundColor(-1);
-            if (mDimView != null) {
-                mDimView.setVisibility(View.VISIBLE);
-            }
             if (mLightSourceView != null) {
                 mLightSourceView.show();
             }
@@ -110,9 +106,6 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
             if (mLightSourceView != null) {
                 mLightSourceView.hide();
             }
-            if (mDimView != null) {
-                mDimView.setVisibility(View.INVISIBLE);
-            }
         });
     }
 
@@ -120,6 +113,9 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         mMain.post(() -> {
             if (mAdded) return;
             ensureView();
+            if (mDimView != null) {
+                mDimView.setVisibility(View.VISIBLE);
+            }
             updateBackgroundColor(-1);
             try {
                 // Dim first, circle second: later windows of the same type sit on top.
@@ -138,9 +134,6 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
             if (!mAdded) return;
             if (mLightSourceView != null) {
                 mLightSourceView.hide();
-            }
-            if (mDimView != null) {
-                mDimView.setVisibility(View.INVISIBLE);
             }
             try {
                 mWm.removeViewImmediate(mCircleRoot);

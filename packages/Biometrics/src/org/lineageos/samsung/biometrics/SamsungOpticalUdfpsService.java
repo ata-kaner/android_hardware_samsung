@@ -124,7 +124,9 @@ public class SamsungOpticalUdfpsService
         mFingerDown = false;
 
         stopCircleIllumination();
-        hideDimLayer();
+        if (mBiometricState == 0) {
+            hideDimLayer();
+        }
         scheduleReleaseWakeLock(WAKELOCK_RELEASE_DEBOUNCE_MS);
     }
 
@@ -132,6 +134,9 @@ public class SamsungOpticalUdfpsService
     public void onWokeFromAod() {
         if (mDestroyed) return;
         Log.i(TAG, "Woke from AoD, bio=" + mBiometricState);
+        if (mBiometricState != 0) {
+            showDimLayer();
+        }
     }
 
     @Override
@@ -151,7 +156,9 @@ public class SamsungOpticalUdfpsService
         if (mDestroyed) return;
         Log.i(TAG, "onOpticalCaptureFinished: Immediately stopping illumination");
         stopCircleIllumination();
-        hideDimLayer();
+        if (mBiometricState == 0) {
+            hideDimLayer();
+        }
     }
 
     // ---- Authentication Events (BioStateListener) ---------------------------
@@ -164,7 +171,9 @@ public class SamsungOpticalUdfpsService
         if (BiometricFingerprintConstants.shouldDisableUdfpsDisplayMode(acquiredInfo)) {
             Log.d(TAG, "Fingerprint image acquired (" + acquiredInfo + "); stopping illumination");
             stopCircleIllumination();
-            hideDimLayer();
+            if (mBiometricState == 0) {
+                hideDimLayer();
+            }
         }
     }
 
@@ -175,7 +184,9 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationFailed() {
         Log.i(TAG, "Fingerprint scan failed; stopping illumination");
         stopCircleIllumination();
-        hideDimLayer();
+        if (mBiometricState == 0) {
+            hideDimLayer();
+        }
         mBlackMaskView.hide();
     }
 
@@ -220,6 +231,10 @@ public class SamsungOpticalUdfpsService
                 if (!mFingerDown) {
                     hideDimLayer();
                 }
+            } else if (displayState == Display.STATE_ON && mDisplayStateListener.isInteractive()) {
+                if (mBiometricState != 0) {
+                    showDimLayer();
+                }
             }
         });
     }
@@ -242,6 +257,7 @@ public class SamsungOpticalUdfpsService
                 mSessionStartedFromScreenOff = true;
             } else {
                 mSessionStartedFromScreenOff = false;
+                showDimLayer();
             }
         } else {
             mFingerDown = false;
