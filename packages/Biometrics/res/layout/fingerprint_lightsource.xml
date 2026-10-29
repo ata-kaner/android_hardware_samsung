@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fingerprint_lightsource_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!--
+        White UDFPS circle, in its OWN window titled "UdfpsControllerOverlay" so SurfaceFlinger
+        names the layer " SurfaceView[UdfpsControllerOverlay](BLAST)" (UDFPS_TOUCHED_LAYER_NAME).
+        match_parent so canvas coordinates align with full-screen sensor position values.
+        Always VISIBLE so the SurfaceView keeps its Surface allocated; hiding is done by
+        clearing the canvas, not setVisibility(INVISIBLE).
+    -->
+    <org.lineageos.samsung.biometrics.LightSourceView
+        android:id="@+id/fingerprint_lightsource_surfaceview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</FrameLayout>
