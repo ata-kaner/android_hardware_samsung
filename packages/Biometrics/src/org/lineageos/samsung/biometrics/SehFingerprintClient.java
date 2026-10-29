@@ -82,6 +82,16 @@ public class SehFingerprintClient {
                 }
             });
         }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ISehFingerprintCallback.VERSION;
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return ISehFingerprintCallback.HASH;
+        }
     };
 
     public SehFingerprintClient(Handler handler) {

@@ -42,13 +42,20 @@ public class DisplaySolution {
         }
     }
 
+    public float getAlphaMaskLevel(float currentBrightnessIndex, float fingerPrintIndex, float brCtrl) {
+        return calculateAlphaBlendingValue(Math.round(currentBrightnessIndex), fingerPrintIndex, brCtrl);
+    }
+
     public int getAlphaMaskLevel(int currentBrightnessIndex, float fingerPrintIndex) {
-        float alphaBlendingValue = calculateAlphaBlendingValue(currentBrightnessIndex, fingerPrintIndex);
+        float alphaBlendingValue = calculateAlphaBlendingValue(currentBrightnessIndex, fingerPrintIndex, 1.0f);
         return Math.round(alphaBlendingValue * 255.0f);
     }
 
     public float calculateAlphaBlendingValue(int currentBrightnessIndex, float fingerPrintIndex) {
-        float brCtrl = 1.0f;
+        return calculateAlphaBlendingValue(currentBrightnessIndex, fingerPrintIndex, 1.0f);
+    }
+
+    public float calculateAlphaBlendingValue(int currentBrightnessIndex, float fingerPrintIndex, float brCtrl) {
         float gamma = 2.2f;
 
         if (mGammaArray != null && mGammaArray.length > 0) {

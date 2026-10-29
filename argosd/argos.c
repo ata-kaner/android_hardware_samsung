@@ -98,7 +98,7 @@ argos_state_t* argos_boot(void) {
         prefix = ARGOS_BOOT_DEVICE_PREFIX_QCOM;
         interval_prop = ARGOS_INTERVAL_PROP_QCOM;
         is_exynos = 0;
-    } else if (access(ARGOS_DT_PATH_EXYNOS, F_OK) == 0) {
+    } else {
         dt_path = ARGOS_DT_PATH_EXYNOS;
         prefix = ARGOS_BOOT_DEVICE_PREFIX_EXYNOS;
         interval_prop = ARGOS_INTERVAL_PROP_EXYNOS;
