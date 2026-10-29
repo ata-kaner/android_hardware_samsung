@@ -34,5 +34,4 @@ interface ISehFingerprint {
   void setMaskBrightness(int brightness);
   int getSensorTargetNits();
   String getSensorLightColor();
-  void setScreenState(int state);
 }

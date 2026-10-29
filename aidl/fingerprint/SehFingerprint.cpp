@@ -333,17 +333,6 @@ std::string SehFingerprint::getOpticalBrightnessConfig() {
     return ::ndk::ScopedAStatus::ok();
 }
 
-::ndk::ScopedAStatus SehFingerprint::setScreenState(int32_t in_state) {
-    mScreenState = in_state;
-    LOG(INFO) << "setScreenState: " << in_state;
-
-    // Samsung stock convention: 1 = Screen OFF / Doze, 2 = Screen ON
-    int displayStatus = (in_state == 1) ? 2 : 1;
-    LegacyHAL::request(SEM_REQUEST_SET_DISPLAY_STATUS, displayStatus);
-
-    return ::ndk::ScopedAStatus::ok();
-}
-
 void SehFingerprint::notifyOpticalCaptureStarted() {
     std::lock_guard<std::mutex> lock(mCallbackLock);
     for (auto& cb : mCallbacks) {

@@ -39,7 +39,4 @@ interface ISehFingerprint {
 
     /** Reads sensor illumination circle color hex string (e.g. "FFFFFF" or "00FF00") from rb */
     String getSensorLightColor();
-
-    /** Informs HAL of display interactive/doze state (0 = OFF, 1 = ON, 2 = DOZE) */
-    void setScreenState(int state);
 }

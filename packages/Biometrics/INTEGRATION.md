@@ -102,7 +102,7 @@ Declared in `AndroidManifest.xml` and allowlisted in `privapp-permissions-samsun
 
 - **Biometrics Fingerprint Vendor HAL**: `vendor.samsung.hardware.biometrics.fingerprint.ISehFingerprint/default`
   - Implemented inside `android.hardware.biometrics.fingerprint-service.samsung`.
-  - Exposes `updateDisplayInfo(displayWidth, displayHeight, xdpi)`, `getSensorInfo`, `getFodRect`, `setFodEnable`, `setFodRect`, `setFodIconVisible`, `setMaskBrightness`, `getSensorTargetNits`, `getSensorLightColor`, and `setScreenState`.
+  - Exposes `updateDisplayInfo(displayWidth, displayHeight, xdpi)`, `getSensorInfo`, `getFodRect`, `setFodEnable`, `setFodRect`, `setFodIconVisible`, `setMaskBrightness`, `getSensorTargetNits`, and `getSensorLightColor`.
   - Computes sensor geometry and the FoD touch rectangle natively: reads `/sys/class/fingerprint/fingerprint/position` directly for **both Optical and Ultrasonic sensors** (with fallback to `ro.vendor.fingerprint.sensor_location` or device defaults), eliminating framework-side reflection entirely.
   - Automatically programs `/sys/class/sec/tsp/cmd` with the computed `set_fod_rect`.
   - Internal native `poll()` thread monitors `/sys/devices/virtual/sec/tsp/scrub_pos` and dispatches `onFingerDown(x, y)` and `onFingerUp()` to `ISehFingerprintCallback`.

@@ -44,7 +44,6 @@ class SehFingerprint : public BnSehFingerprint {
     ::ndk::ScopedAStatus setMaskBrightness(int32_t in_brightness) override;
     ::ndk::ScopedAStatus getSensorTargetNits(int32_t* _aidl_return) override;
     ::ndk::ScopedAStatus getSensorLightColor(std::string* _aidl_return) override;
-    ::ndk::ScopedAStatus setScreenState(int32_t in_state) override;
 
     // Internal triggers from Fingerprint Session / Notify
     void notifyOpticalCaptureStarted();
@@ -68,7 +67,6 @@ class SehFingerprint : public BnSehFingerprint {
     std::thread mPollerThread;
     int mStopPipe[2]{-1, -1};
 
-    int32_t mScreenState{1};
     int32_t mFodMode{0};
 
     struct SensorInfo {

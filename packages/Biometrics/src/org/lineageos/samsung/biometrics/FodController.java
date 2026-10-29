@@ -71,7 +71,6 @@ public class FodController implements SehFingerprintClient.Listener {
 
     private Rect mFodRect;
     private boolean mLastIconVisible = false;
-    private int mLastScreenState = -1;
 
     private ContentObserver mUdfpsObserver;
     private FodListener mFodListener;
@@ -182,7 +181,6 @@ public class FodController implements SehFingerprintClient.Listener {
         if (!mRunning) return;
         applyConfig();
         sendFodState(mCurrentState);
-        updateScreenState();
         updateIconVisibility();
     }
 
@@ -315,9 +313,6 @@ public class FodController implements SehFingerprintClient.Listener {
         mLastIconVisible = false;
         mClient.setFodIconVisible(false);
 
-        mLastScreenState = 0;
-        mClient.setScreenState(0);
-
         try {
             mContext.unregisterReceiver(mScreenReceiver);
         } catch (IllegalArgumentException ignored) {}
@@ -382,7 +377,6 @@ public class FodController implements SehFingerprintClient.Listener {
     private void evaluateState() {
         if (!mRunning) return;
 
-        updateScreenState();
         updateIconVisibility();
 
         FodState desired = computeDesiredState();
@@ -392,33 +386,6 @@ public class FodController implements SehFingerprintClient.Listener {
         if (mCurrentState == FodState.AOD_FAST && desired == FodState.AOD_STRICT) return;
 
         transitionToState(desired);
-    }
-
-    private int computeDesiredScreenState() {
-        int displayState = getDisplayState();
-        switch (displayState) {
-            case Display.STATE_ON:
-            case Display.STATE_VR:
-                return 1;
-            case Display.STATE_DOZE:
-            case Display.STATE_DOZE_SUSPEND:
-                return 2;
-            case Display.STATE_OFF:
-            case Display.STATE_UNKNOWN:
-            default:
-                return 0;
-        }
-    }
-
-    private void updateScreenState() {
-        if (!mRunning || !mClient.isConnected()) return;
-
-        int state = computeDesiredScreenState();
-        if (mLastScreenState != state) {
-            mLastScreenState = state;
-            Log.i(TAG, "updateScreenState: " + state);
-            mClient.setScreenState(state);
-        }
     }
 
     private boolean computeDesiredIconVisible() {

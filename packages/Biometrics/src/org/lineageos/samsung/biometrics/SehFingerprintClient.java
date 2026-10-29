@@ -279,21 +279,6 @@ public class SehFingerprintClient {
         }
     }
 
-    public boolean setScreenState(int state) {
-        ISehFingerprint hal = mHal;
-        if (hal == null) {
-            hal = getService();
-        }
-        if (hal == null) return false;
-        try {
-            hal.setScreenState(state);
-            return true;
-        } catch (RemoteException | RuntimeException e) {
-            Log.e(TAG, "Failed setScreenState(" + state + ")", e);
-            return false;
-        }
-    }
-
     private void tryConnect() {
         if (!mWanted || mHal != null) return;
 
