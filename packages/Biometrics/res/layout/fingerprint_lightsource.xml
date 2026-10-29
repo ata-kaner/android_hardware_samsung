@@ -8,12 +8,13 @@
         White UDFPS circle, in its OWN window titled "UdfpsControllerOverlay" so SurfaceFlinger
         names the layer " SurfaceView[UdfpsControllerOverlay](BLAST)" (UDFPS_TOUCHED_LAYER_NAME).
         match_parent so canvas coordinates align with full-screen sensor position values.
-        Always VISIBLE so the SurfaceView keeps its Surface allocated; hiding is done by
-        clearing the canvas, not setVisibility(INVISIBLE).
+        Visibility is controlled by show()/hide() so the Surface is only allocated/active in
+        SurfaceFlinger while illuminating, engaging HBM only during touch.
     -->
     <org.lineageos.samsung.biometrics.LightSourceView
         android:id="@+id/fingerprint_lightsource_surfaceview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:visibility="invisible" />
 
 </FrameLayout>

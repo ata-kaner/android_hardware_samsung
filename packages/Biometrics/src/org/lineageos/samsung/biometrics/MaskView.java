@@ -136,6 +136,12 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
     public void hide() {
         mMain.post(() -> {
             if (!mAdded) return;
+            if (mLightSourceView != null) {
+                mLightSourceView.hide();
+            }
+            if (mDimView != null) {
+                mDimView.setVisibility(View.INVISIBLE);
+            }
             try {
                 mWm.removeViewImmediate(mCircleRoot);
             } catch (RuntimeException e) {

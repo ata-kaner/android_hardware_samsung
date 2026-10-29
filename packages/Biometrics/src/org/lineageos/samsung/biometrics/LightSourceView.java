@@ -24,11 +24,12 @@ import android.view.SurfaceView;
  * Draws a white circle on a transparent SurfaceView at the fingerprint sensor position.
  *
  * Sits above the dim layer via setZOrderOnTop(true). The surface uses
- * PixelFormat.TRANSPARENT so only the explicitly painted circle is opaque —
+ * PixelFormat.TRANSLUCENT so only the explicitly painted circle is opaque —
  * everywhere else the dim layer shows through.
  *
- * Circle is shown/hidden purely by what is drawn on the canvas — the view stays
- * VISIBLE at all times so the Surface remains allocated and lockCanvas() succeeds.
+ * Circle is shown/hidden via show() and hide(), which toggles visibility. When
+ * INVISIBLE, the Surface is removed so SurfaceFlinger does not tag the touched layer
+ * with FOD_PRESSED_LAYER_ZORDER, ensuring HBM is only engaged during active touch.
  */
 public class LightSourceView extends SurfaceView implements SurfaceHolder.Callback {
 
@@ -78,11 +79,9 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
 
     private void init() {
         mHolder.addCallback(this);
-        // TRANSPARENT (-2): surface pixels default to fully transparent.
-        // Combined with setZOrderOnTop(true), only the painted circle is visible —
-        // the rest of the surface is clear, letting the dim layer show through.
-        mHolder.setFormat(PixelFormat.TRANSPARENT);
+        mHolder.setFormat(PixelFormat.TRANSLUCENT);
         setZOrderOnTop(true);
+        setVisibility(INVISIBLE);
     }
 
     // -------------------------------------------------------------------------
@@ -96,8 +95,8 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
     }
 
     /**
-     * Show the white circle. The view must stay VISIBLE (not INVISIBLE/GONE)
-     * so the Surface is always allocated. Appearance is controlled via canvas draws.
+     * Show the white circle. Toggles visibility to VISIBLE so the Surface is allocated
+     * and SurfaceFlinger tags the touched layer with UDFPS_PRESSED_LAYER_ZORDER to engage HBM.
      */
     public void show() {
         if (mSensorInfo == null) {
@@ -110,16 +109,18 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
             setLightSourceInfo();
         }
         mIsShown = true;
+        setVisibility(VISIBLE);
         draw();
     }
 
     /**
-     * Hide the circle by clearing the canvas to transparent.
-     * Does NOT call setVisibility(INVISIBLE) — that would destroy the Surface.
+     * Hide the circle. Setting INVISIBLE removes the Surface so SurfaceFlinger
+     * clears the touched layer, immediately turning off HBM.
      */
     public void hide() {
         mIsShown = false;
-        draw();
+        mHasPendingDraw = false;
+        setVisibility(INVISIBLE);
     }
 
     // -------------------------------------------------------------------------
@@ -144,6 +145,7 @@ public class LightSourceView extends SurfaceView implements SurfaceHolder.Callba
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
+        mHasPendingDraw = false;
     }
 
     // -------------------------------------------------------------------------
