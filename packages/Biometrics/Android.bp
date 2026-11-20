@@ -1,0 +1,29 @@
+
+//
+// SPDX-FileCopyrightText: 2025 The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+android_app {
+    name: "SamsungBiometrics",
+    srcs: [
+        "src/**/*.java",
+    ],
+
+    // Biometrics Fingerprint Vendor Extension (ISehFingerprint)
+    static_libs: [
+        "vendor.samsung.hardware.biometrics.fingerprint-V1-java",
+    ],
+
+    aidl: {
+        include_dirs: [
+            "frameworks/base/core/java",
+        ],
+    },
+
+    certificate: "platform",
+    platform_apis: true,
+    privileged: true,
+    system_ext_specific: true,
+    privapp_allowlist: "privapp-permissions-samsung-biometrics.xml",
+}

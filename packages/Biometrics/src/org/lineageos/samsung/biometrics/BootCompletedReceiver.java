@@ -1,0 +1,27 @@
+/*
+ * SPDX-FileCopyrightText: 2025-2026 The LineageOS Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package org.lineageos.samsung.biometrics;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.util.Log;
+
+public class BootCompletedReceiver extends BroadcastReceiver {
+    private static final String TAG = "SB_BootReceiver";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        if (Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
+                || Intent.ACTION_BOOT_COMPLETED.equals(action)) {
+            Log.i(TAG, "Received " + action + ": starting SamsungBiometricService");
+            Intent serviceIntent = new Intent(context, SamsungBiometricService.class);
+            context.startService(serviceIntent);
+        }
+    }
+}

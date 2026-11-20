@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fingerprint_lightsource_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!--
+        Optical UDFPS illumination circle in its own window titled "FP LightSource" (sitting above
+        "Dim Layer for UDFPS" without colliding with SystemUI's "UdfpsControllerOverlay").
+        Starts INVISIBLE; LightSourceView.show()/hide() toggles visibility and clears the canvas.
+    -->
+    <org.lineageos.samsung.biometrics.LightSourceView
+        android:id="@+id/fingerprint_lightsource_surfaceview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="invisible" />
+
+</FrameLayout>
