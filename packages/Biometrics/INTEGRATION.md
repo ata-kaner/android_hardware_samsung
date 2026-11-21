@@ -1,6 +1,6 @@
 # SamsungBiometrics – Unified Optical + Ultrasonic UDFPS
 
-Unified system application (`org.lineageos.samsung.biometrics`) providing TouchScreen Panel (TSP) FoD control and Optical UDFPS dimming/illumination on Samsung devices running LineageOS / AOSP.
+Unified system application (`org.lineageos.biometricservice`) providing TouchScreen Panel (TSP) FoD control and Optical UDFPS dimming/illumination on Samsung devices running LineageOS / AOSP.
 
 The sensor type reported by the framework (`FingerprintSensorPropertiesInternal.sensorType`) determines the active components:
 
@@ -84,7 +84,7 @@ Declared in `AndroidManifest.xml` and allowlisted in `privapp-permissions-samsun
 
 ```xml
 <permissions>
-    <privapp-permissions package="org.lineageos.samsung.biometrics">
+    <privapp-permissions package="org.lineageos.biometricservice">
         <permission name="android.permission.DEVICE_POWER"/>
         <permission name="android.permission.INTERACT_ACROSS_USERS"/>
         <permission name="android.permission.MANAGE_BIOMETRIC"/>

@@ -9,7 +9,7 @@
         "Dim Layer for UDFPS" without colliding with SystemUI's "UdfpsControllerOverlay").
         Starts INVISIBLE; LightSourceView.show()/hide() toggles visibility and clears the canvas.
     -->
-    <org.lineageos.samsung.biometrics.LightSourceView
+    <org.lineageos.biometricservice.LightSourceView
         android:id="@+id/fingerprint_lightsource_surfaceview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

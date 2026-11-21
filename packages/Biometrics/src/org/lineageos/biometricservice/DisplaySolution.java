@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.lineageos.samsung.biometrics;
+package org.lineageos.biometricservice;
 
 import android.content.Context;
 import android.util.Log;

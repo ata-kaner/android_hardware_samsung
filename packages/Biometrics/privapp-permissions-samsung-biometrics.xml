@@ -4,7 +4,7 @@
      SPDX-License-Identifier: Apache-2.0
 -->
 <permissions>
-    <privapp-permissions package="org.lineageos.samsung.biometrics">
+    <privapp-permissions package="org.lineageos.biometricservice">
         <permission name="android.permission.MANAGE_BIOMETRIC"/>
         <permission name="android.permission.INTERACT_ACROSS_USERS"/>
         <permission name="android.permission.MONITOR_INPUT"/>
