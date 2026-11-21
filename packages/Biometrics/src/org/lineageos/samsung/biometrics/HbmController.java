@@ -52,7 +52,21 @@ public final class HbmController {
     private boolean mHbmEnabled;
     private Runnable mPendingTouchAction;
 
-    private final Runnable mScreenOffTimeoutRunnable = () -> {
+    private final Runnable mScreenOffTimeoutRunnable = this::onScreenOffTimeout;
+    private final Runnable mHbmOffVerifyRunnable = this::verifyHbmOff;
+    private final Runnable mHbmReadyFallbackRunnable = this::onHbmReadyFallback;
+
+    public HbmController(Handler main, MaskView maskView,
+                         DisplayStateListener displayStateListener,
+                         SehFingerprintClient client, Callback callback) {
+        mMain = main;
+        mMaskView = maskView;
+        mDisplayStateListener = displayStateListener;
+        mClient = client;
+        mCallback = callback;
+    }
+
+    private void onScreenOffTimeout() {
         if (mState == State.DISPLAY_LIMIT) {
             Log.w(TAG, "Screen-off HBM failsafe timeout expired (" + SCREEN_OFF_HBM_TIMEOUT_MS + "ms)");
             turnOffHbm(false);
@@ -61,9 +75,9 @@ public final class HbmController {
                 mCallback.onScreenOffHbmTimeout();
             }
         }
-    };
+    }
 
-    private final Runnable mHbmOffVerifyRunnable = () -> {
+    private void verifyHbmOff() {
         if (!mMaskView.isShowing() && mHbmEnabled) {
             boolean hwEnabled = mClient.isHbmEnabled();
             if (!hwEnabled) {
@@ -74,9 +88,9 @@ public final class HbmController {
                 onHbmChanged(false);
             }
         }
-    };
+    }
 
-    private final Runnable mHbmReadyFallbackRunnable = () -> {
+    private void onHbmReadyFallback() {
         if (mPendingTouchAction != null) {
             boolean hwEnabled = mClient.isHbmEnabled();
             Log.w(TAG, "HBM ready fallback fired (hwEnabled=" + hwEnabled + "); dispatching action");
@@ -85,16 +99,6 @@ public final class HbmController {
             }
             flushPendingTouchAction();
         }
-    };
-
-    public HbmController(Handler main, MaskView maskView,
-                         DisplayStateListener displayStateListener,
-                         SehFingerprintClient client, Callback callback) {
-        mMain = main;
-        mMaskView = maskView;
-        mDisplayStateListener = displayStateListener;
-        mClient = client;
-        mCallback = callback;
     }
 
     public State getState() {
