@@ -148,12 +148,21 @@ public final class HbmController {
         }
     }
 
+    public void onScreenOffFingerUp() {
+        if (mState == State.DISPLAY_LIMIT) {
+            clearPendingTouchAction();
+            mMain.removeCallbacks(mScreenOffTimeoutRunnable);
+            turnOffHbm(true);
+            transitionTo(State.DISPLAY_OFF);
+        }
+    }
+
     public void onDisplayStateChanged(int displayState) {
         if (!mSessionActive && mState == State.INIT) {
             return;
         }
 
-        if (displayState == Display.STATE_ON) {
+        if (displayState == Display.STATE_ON && mDisplayStateListener.isInteractive()) {
             mMain.removeCallbacks(mScreenOffTimeoutRunnable);
             if (mState == State.DISPLAY_OFF || mState == State.DISPLAY_LIMIT) {
                 transitionTo(State.DISPLAY_ON);
@@ -162,7 +171,8 @@ public final class HbmController {
         } else if (displayState == Display.STATE_OFF
                 || displayState == Display.STATE_DOZE
                 || displayState == Display.STATE_DOZE_SUSPEND) {
-            if (mState == State.DISPLAY_ON) {
+            if (mState == State.DISPLAY_ON || mState == State.DISPLAY_LIMIT) {
+                mMain.removeCallbacks(mScreenOffTimeoutRunnable);
                 turnOffHbm(true);
                 transitionTo(State.DISPLAY_OFF);
             }

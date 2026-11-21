@@ -43,6 +43,7 @@ public class DisplayStateListener implements DisplayManager.DisplayListener {
     private final OnDisplayStateChangedListener mListener;
 
     private int mCurrentDisplayState = STATE_UNKNOWN;
+    private boolean mCurrentInteractive;
     private boolean mRegistered;
 
     private final BroadcastReceiver mScreenReceiver = new BroadcastReceiver() {
@@ -100,10 +101,12 @@ public class DisplayStateListener implements DisplayManager.DisplayListener {
 
     private void updateState() {
         int newState = queryDisplayState();
-        if (mCurrentDisplayState != newState) {
+        boolean newInteractive = isInteractive();
+        if (mCurrentDisplayState != newState || mCurrentInteractive != newInteractive) {
             Log.i(TAG, "Display state changed: " + stateToString(mCurrentDisplayState)
-                    + " -> " + stateToString(newState) + " (interactive=" + isInteractive() + ")");
+                    + " -> " + stateToString(newState) + " (interactive=" + newInteractive + ")");
             mCurrentDisplayState = newState;
+            mCurrentInteractive = newInteractive;
             if (mListener != null) {
                 mListener.onDisplayStateChanged(mCurrentDisplayState);
             }

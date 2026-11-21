@@ -443,11 +443,14 @@ public class FodController implements SehFingerprintClient.Listener {
     }
 
     private FodState computeDesiredState() {
+        boolean interactive = mPowerManager == null || mPowerManager.isInteractive();
         switch (getDisplayState()) {
             case Display.STATE_ON:
             case Display.STATE_VR:
-                return mBiometricState != BiometricStateListener.STATE_IDLE
-                        ? FodState.SCREEN_ON_FAST : FodState.DISABLED;
+                if (mBiometricState == BiometricStateListener.STATE_IDLE) {
+                    return FodState.DISABLED;
+                }
+                return interactive ? FodState.SCREEN_ON_FAST : FodState.AOD_STRICT;
 
             case Display.STATE_DOZE:
             case Display.STATE_DOZE_SUSPEND:

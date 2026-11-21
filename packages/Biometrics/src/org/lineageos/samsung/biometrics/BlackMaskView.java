@@ -117,7 +117,8 @@ public final class BlackMaskView implements DisplayBrightnessMonitor.OnBrightnes
     @Override
     public void onBrightnessChanged(int brightness) {
         if (!mShowing.get()) return;
-        boolean displayOn = mDisplayStateListener == null || mDisplayStateListener.isScreenOn();
+        boolean displayOn = mDisplayStateListener == null
+                || (mDisplayStateListener.isScreenOn() && mDisplayStateListener.isInteractive());
         if (displayOn && mInitialBrightness >= 0 && brightness != mInitialBrightness) {
             Log.d(TAG, "onBrightnessChanged: " + mInitialBrightness + " -> " + brightness
                     + " (STATE_ON) — hiding black mask early");
@@ -127,7 +128,8 @@ public final class BlackMaskView implements DisplayBrightnessMonitor.OnBrightnes
 
     private void onTimeoutTick() {
         if (!mShowing.get()) return;
-        boolean stillInAod = mDisplayStateListener != null && !mDisplayStateListener.isScreenOn();
+        boolean stillInAod = mDisplayStateListener != null
+                && (!mDisplayStateListener.isScreenOn() || !mDisplayStateListener.isInteractive());
         if (stillInAod && mElapsedTimeoutMs < MAX_TOTAL_TIMEOUT_MS) {
             mElapsedTimeoutMs += AOD_EXTEND_MS;
             Log.d(TAG, "Display still transitioning from AOD; extending black mask by "

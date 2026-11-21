@@ -344,7 +344,8 @@ public final class MaskView implements DisplayBrightnessMonitor.OnBrightnessList
         }
 
         float effectiveBrightness;
-        if (mDisplayStateListener != null && !mDisplayStateListener.isScreenOn()) {
+        if (mDisplayStateListener != null
+                && (!mDisplayStateListener.isScreenOn() || !mDisplayStateListener.isInteractive())) {
             effectiveBrightness = mDisplaySolution.getAodBacklightValue(rawBrightness);
         } else {
             effectiveBrightness = rawBrightness;

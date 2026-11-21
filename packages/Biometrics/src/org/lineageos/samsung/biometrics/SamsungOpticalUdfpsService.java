@@ -15,7 +15,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Process;
-import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
 
@@ -127,7 +126,8 @@ public class SamsungOpticalUdfpsService
         if (mDestroyed || !mFingerDown) return;
         mTouchDownDelivered = true;
         int alpha = mMaskView.getCurrentAlpha();
-        boolean screenOn = mDisplayStateListener.isScreenOn();
+        boolean screenOn = mDisplayStateListener.isScreenOn()
+                && mDisplayStateListener.isInteractive();
         Log.d(TAG, "Delivering touch-down to HAL after " + TOUCH_DOWN_DELIVERY_DELAY_MS
                 + "ms (alpha=" + alpha + ", screenOn=" + screenOn + ")");
         mFod.getClient().notifyTouchEvent(true, alpha, screenOn);
@@ -156,6 +156,10 @@ public class SamsungOpticalUdfpsService
             Log.d(TAG, "onFingerDown ignored while biometric state is IDLE");
             return;
         }
+        if (mFingerDown) {
+            Log.d(TAG, "Ignoring duplicate onFingerDown while finger already down");
+            return;
+        }
         Log.i(TAG, "onFingerDown: (" + x + ", " + y + ") [screenOn="
                 + mDisplayStateListener.isScreenOn() + ", doze=" + mDisplayStateListener.isDoze()
                 + ", interactive=" + mDisplayStateListener.isInteractive()
@@ -169,14 +173,10 @@ public class SamsungOpticalUdfpsService
 
         if (!mDisplayStateListener.isScreenOn() || mDisplayStateListener.isDoze()
                 || !mDisplayStateListener.isInteractive()) {
+            // Do NOT call PowerManager.wakeUp() here: AOSP SystemUI (DozeService) already moves
+            // the panel to doze screen state ON while keeping the device in AoD/Screen-Off UI.
+            // Calling PowerManager.wakeUp() forces Keyguard to exit Doze into the Lockscreen.
             mSessionStartedFromScreenOff = true;
-            Log.i(TAG, "Touch in AoD/Off -> waking display");
-            if (mPowerManager != null) {
-                mPowerManager.wakeUp(
-                        SystemClock.uptimeMillis(),
-                        PowerManager.WAKE_REASON_BIOMETRIC,
-                        "SamsungBiometrics:AoD");
-            }
         }
 
         mHbmController.onFingerDown();
@@ -197,6 +197,9 @@ public class SamsungOpticalUdfpsService
 
         if (mBiometricState == BiometricStateListener.STATE_IDLE) {
             mHbmController.stopSession();
+            setProcessForeground(false);
+        } else if (mHbmController.getState() == HbmController.State.DISPLAY_LIMIT) {
+            mHbmController.onScreenOffFingerUp();
             setProcessForeground(false);
         }
         scheduleReleaseWakeLock(WAKELOCK_RELEASE_DEBOUNCE_MS);
@@ -303,7 +306,9 @@ public class SamsungOpticalUdfpsService
         stopCircleIllumination();
         deliverTouchUpIfNeeded();
 
-        boolean fromScreenOff = mSessionStartedFromScreenOff || !mDisplayStateListener.isScreenOn();
+        boolean fromScreenOff = mSessionStartedFromScreenOff
+                || !mDisplayStateListener.isScreenOn()
+                || !mDisplayStateListener.isInteractive();
         mHbmController.stopSession();
         setProcessForeground(false);
 
