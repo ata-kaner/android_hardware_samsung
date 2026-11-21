@@ -6,6 +6,7 @@
 package org.lineageos.samsung.biometrics;
 
 import android.app.ActivityManager;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.hardware.biometrics.BiometricFingerprintConstants;
 import android.hardware.biometrics.BiometricStateListener;
@@ -47,6 +48,13 @@ public class SamsungOpticalUdfpsService
     /** Failsafe forced touch-up after capture completes (disabled during enrollment). */
     private static final long CAPTURE_COMPLETE_TOUCH_UP_TIMEOUT_MS = 1_000L;
 
+    /**
+     * Debounce for fresh interactive KEYGUARD_AUTH sessions so AOSP's transient (~11ms)
+     * auth start/cancel race at the end of PIN/Swipe unlock never flashes HBM on an unlocked
+     * screen. Flushed immediately if a finger touches down.
+     */
+    private static final long KEYGUARD_SESSION_START_DEBOUNCE_MS = 50L;
+
     private final Handler mMain = new Handler(Looper.getMainLooper());
     private final DisplayStateListener mDisplayStateListener;
     private final MaskView mMaskView;
@@ -54,6 +62,7 @@ public class SamsungOpticalUdfpsService
     private final HbmController mHbmController;
     private final FodController mFod;
     private final IBinder mForegroundToken = new Binder();
+    private final KeyguardManager mKeyguardManager;
     private final PowerManager mPowerManager;
     private final PowerManager.WakeLock mWakeLock;
     private final boolean mIsTablet;
@@ -73,6 +82,7 @@ public class SamsungOpticalUdfpsService
     private final Runnable mCircleTimeoutRunnable = this::stopCircleIllumination;
     private final Runnable mForcedTouchUpRunnable = this::onForcedTouchUpTimeout;
     private final Runnable mDeliverTouchDownRunnable = this::deliverTouchDown;
+    private final Runnable mDeferredKeyguardStartRunnable = this::startDeferredKeyguardSession;
 
     public SamsungOpticalUdfpsService(Context context, FodController fod,
                                       FingerprintSensorInfo sensorInfo) {
@@ -80,6 +90,7 @@ public class SamsungOpticalUdfpsService
 
         mFod = fod;
         mIsTablet = context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        mKeyguardManager = context.getSystemService(KeyguardManager.class);
         mPowerManager = context.getSystemService(PowerManager.class);
         if (mPowerManager != null) {
             mWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
@@ -133,6 +144,19 @@ public class SamsungOpticalUdfpsService
         mFod.getClient().notifyTouchEvent(true, alpha, screenOn);
     }
 
+    private void startDeferredKeyguardSession() {
+        if (mDestroyed) return;
+        if (mBiometricState != BiometricStateListener.STATE_KEYGUARD_AUTH) {
+            return;
+        }
+        if (mKeyguardManager != null && !mKeyguardManager.isKeyguardLocked()) {
+            Log.d(TAG, "Skipping deferred keyguard HBM start: keyguard already unlocked");
+            return;
+        }
+        setProcessForeground(true);
+        mHbmController.startSession();
+    }
+
     // ---- FodController.FodListener (main looper) ----------------------------
 
     @Override
@@ -166,6 +190,7 @@ public class SamsungOpticalUdfpsService
                 + ", hbmState=" + mHbmController.getState() + "]");
 
         mMain.removeCallbacks(mForcedTouchUpRunnable);
+        mMain.removeCallbacks(mDeferredKeyguardStartRunnable);
         mFingerDown = true;
 
         acquireWakeLock(WAKELOCK_TIMEOUT_MS);
@@ -288,6 +313,7 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationError(int errorCode, String errString) {
         Log.i(TAG, "Fingerprint error (" + errorCode + ": " + errString + "); stopping session");
         mFingerDown = false;
+        mMain.removeCallbacks(mDeferredKeyguardStartRunnable);
         mMain.removeCallbacks(mDeliverTouchDownRunnable);
         mMain.removeCallbacks(mForcedTouchUpRunnable);
         stopCircleIllumination();
@@ -301,6 +327,7 @@ public class SamsungOpticalUdfpsService
     public void onAuthenticationSucceeded() {
         Log.i(TAG, "Fingerprint scan succeeded; stopping illumination and HBM");
         mFingerDown = false;
+        mMain.removeCallbacks(mDeferredKeyguardStartRunnable);
         mMain.removeCallbacks(mDeliverTouchDownRunnable);
         mMain.removeCallbacks(mForcedTouchUpRunnable);
         stopCircleIllumination();
@@ -356,11 +383,23 @@ public class SamsungOpticalUdfpsService
                     || mDisplayStateListener.isDoze()
                     || !mDisplayStateListener.isInteractive();
             mSessionStartedFromScreenOff = screenOff;
-            setProcessForeground(true);
-            mHbmController.startSession();
+            mMain.removeCallbacks(mDeferredKeyguardStartRunnable);
+
+            if (newState == BiometricStateListener.STATE_KEYGUARD_AUTH && !screenOff) {
+                if (mKeyguardManager != null && !mKeyguardManager.isKeyguardLocked()) {
+                    Log.d(TAG, "Ignoring KEYGUARD_AUTH while keyguard is already unlocked");
+                    return;
+                }
+                mMain.postDelayed(mDeferredKeyguardStartRunnable,
+                        KEYGUARD_SESSION_START_DEBOUNCE_MS);
+            } else {
+                setProcessForeground(true);
+                mHbmController.startSession();
+            }
         } else {
             mFingerDown = false;
             mSessionStartedFromScreenOff = false;
+            mMain.removeCallbacks(mDeferredKeyguardStartRunnable);
             mMain.removeCallbacks(mDeliverTouchDownRunnable);
             mMain.removeCallbacks(mForcedTouchUpRunnable);
             stopCircleIllumination();

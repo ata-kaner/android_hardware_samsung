@@ -234,7 +234,8 @@ public final class HbmController {
     }
 
     private void turnOffHbm(boolean deferRefreshRateRelease) {
-        mMaskView.hide(deferRefreshRateRelease && mHbmEnabled);
+        boolean holdRr = deferRefreshRateRelease && (mHbmEnabled || mMaskView.isShowing());
+        mMaskView.hide(holdRr);
         mMaskView.stop();
         if (mHbmEnabled) {
             mMain.removeCallbacks(mHbmOffVerifyRunnable);
