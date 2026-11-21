@@ -72,21 +72,8 @@ public class SamsungOpticalUdfpsService
 
     private final Runnable mReleaseWakeLockRunnable = this::releaseWakeLockNow;
     private final Runnable mCircleTimeoutRunnable = this::stopCircleIllumination;
-    private final Runnable mForcedTouchUpRunnable = () -> {
-        if (mFingerDown) {
-            Log.d(TAG, "Capture-completed touch-up timeout expired; forcing finger-up cleanup");
-            onFingerUp();
-        }
-    };
-    private final Runnable mDeliverTouchDownRunnable = () -> {
-        if (mDestroyed || !mFingerDown) return;
-        mTouchDownDelivered = true;
-        int alpha = mMaskView.getCurrentAlpha();
-        boolean screenOn = mDisplayStateListener.isScreenOn();
-        Log.d(TAG, "Delivering touch-down to HAL after " + TOUCH_DOWN_DELIVERY_DELAY_MS
-                + "ms (alpha=" + alpha + ", screenOn=" + screenOn + ")");
-        mFod.getClient().notifyTouchEvent(true, alpha, screenOn);
-    };
+    private final Runnable mForcedTouchUpRunnable = this::onForcedTouchUpTimeout;
+    private final Runnable mDeliverTouchDownRunnable = this::deliverTouchDown;
 
     public SamsungOpticalUdfpsService(Context context, FodController fod,
                                       FingerprintSensorInfo sensorInfo) {
@@ -127,6 +114,23 @@ public class SamsungOpticalUdfpsService
                 mFod.getClient(), this);
 
         mFod.setFodListener(this);
+    }
+
+    private void onForcedTouchUpTimeout() {
+        if (mFingerDown) {
+            Log.d(TAG, "Capture-completed touch-up timeout expired; forcing finger-up cleanup");
+            onFingerUp();
+        }
+    }
+
+    private void deliverTouchDown() {
+        if (mDestroyed || !mFingerDown) return;
+        mTouchDownDelivered = true;
+        int alpha = mMaskView.getCurrentAlpha();
+        boolean screenOn = mDisplayStateListener.isScreenOn();
+        Log.d(TAG, "Delivering touch-down to HAL after " + TOUCH_DOWN_DELIVERY_DELAY_MS
+                + "ms (alpha=" + alpha + ", screenOn=" + screenOn + ")");
+        mFod.getClient().notifyTouchEvent(true, alpha, screenOn);
     }
 
     // ---- FodController.FodListener (main looper) ----------------------------
