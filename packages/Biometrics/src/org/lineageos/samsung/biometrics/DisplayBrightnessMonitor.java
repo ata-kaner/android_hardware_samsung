@@ -7,8 +7,10 @@ package org.lineageos.samsung.biometrics;
 
 import android.content.Context;
 import android.database.ContentObserver;
+import android.hardware.display.BrightnessInfo;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
+import android.os.FileObserver;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -22,9 +24,14 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Monitors logical display brightness via {@link DisplayManager#EVENT_TYPE_DISPLAY_BRIGHTNESS}
- * and maps AOSP's normalized {@code [0.0f..1.0f]} brightness to the device's panel backlight
- * scale ({@code [0..maxBacklight]}), with sysfs fallback when needed.
+ * Monitors live panel display brightness.
+ *
+ * <p>Uses a {@link FileObserver} on the panel backlight sysfs node (matching Samsung OneUI's
+ * {@code DisplayBrightnessMonitor}) so dimming alpha updates smoothly on every frame during both
+ * brightness slider drags ({@code setTemporaryBrightness}) and auto-brightness ramps, where AOSP
+ * suppresses or only sends target-only {@link DisplayManager#EVENT_TYPE_DISPLAY_BRIGHTNESS}
+ * callbacks. Falls back to {@link Display#getBrightnessInfo()} / {@link DisplayManager} when sysfs
+ * is unavailable.
  */
 public final class DisplayBrightnessMonitor {
     private static final String TAG = "SB_BrightnessMonitor";
@@ -44,16 +51,22 @@ public final class DisplayBrightnessMonitor {
 
     private final Handler mHandler;
     private final String mBrightnessFilePath;
+    private final String mMaxBrightnessFilePath;
     private final List<OnBrightnessListener> mListeners = new CopyOnWriteArrayList<>();
+    private final Runnable mDispatchRunnable = this::dispatchPendingBrightness;
 
     private Context mContext;
     private DisplayManager mDisplayManager;
     private ContentObserver mContentObserver;
+    private FileObserver mFileObserver;
+    private boolean mFileObserverWatching;
     private boolean mDisplayListenerRegistered;
 
     private volatile float mMaxBacklight = 255.0f;
+    private volatile float mSysfsMaxBacklight = -1.0f;
     private volatile float mCurrentBrightnessFloat = -1.0f;
     private volatile int mCurrentBrightness = -1;
+    private volatile int mPendingBrightness = -1;
 
     private final DisplayManager.DisplayListener mDisplayListener =
             new DisplayManager.DisplayListener() {
@@ -75,8 +88,10 @@ public final class DisplayBrightnessMonitor {
         mHandler = new Handler(looper);
         if ("qcom".equals(Build.HARDWARE)) {
             mBrightnessFilePath = "/sys/class/backlight/panel0-backlight/brightness";
+            mMaxBrightnessFilePath = "/sys/class/backlight/panel0-backlight/max_brightness";
         } else {
             mBrightnessFilePath = "/sys/class/lcd/panel/device/backlight/panel/brightness";
+            mMaxBrightnessFilePath = "/sys/class/lcd/panel/device/backlight/panel/max_brightness";
         }
     }
 
@@ -84,6 +99,24 @@ public final class DisplayBrightnessMonitor {
         if (mContext != null || context == null) return;
         mContext = context.getApplicationContext();
         mDisplayManager = mContext.getSystemService(DisplayManager.class);
+
+        readSysfsMaxBrightness();
+
+        try {
+            File brightnessFile = new File(mBrightnessFilePath);
+            mFileObserver = new FileObserver(brightnessFile, FileObserver.MODIFY) {
+                @Override
+                public void onEvent(int event, String path) {
+                    int mapped = readSysfsBrightness();
+                    if (mapped >= 0) {
+                        postBrightnessChanged(mapped);
+                    }
+                }
+            };
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Failed to create brightness FileObserver for " + mBrightnessFilePath, e);
+            mFileObserver = null;
+        }
 
         mContentObserver = new ContentObserver(mHandler) {
             @Override
@@ -131,15 +164,22 @@ public final class DisplayBrightnessMonitor {
 
         mListeners.remove(listener);
         if (mListeners.isEmpty()) {
-            mHandler.removeCallbacksAndMessages(null);
+            mHandler.removeCallbacks(mDispatchRunnable);
             observe(false);
         }
     }
 
     private void observe(boolean enable) {
-        if (mDisplayManager == null) return;
         if (enable) {
-            if (!mDisplayListenerRegistered) {
+            if (mFileObserver != null && !mFileObserverWatching) {
+                try {
+                    mFileObserver.startWatching();
+                    mFileObserverWatching = true;
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "Failed to start brightness FileObserver", e);
+                }
+            }
+            if (mDisplayManager != null && !mDisplayListenerRegistered) {
                 try {
                     mDisplayManager.registerDisplayListener(
                             mDisplayListener, mHandler,
@@ -151,7 +191,15 @@ public final class DisplayBrightnessMonitor {
             }
             refreshBrightness();
         } else {
-            if (mDisplayListenerRegistered) {
+            if (mFileObserver != null && mFileObserverWatching) {
+                try {
+                    mFileObserver.stopWatching();
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "Failed to stop brightness FileObserver", e);
+                }
+                mFileObserverWatching = false;
+            }
+            if (mDisplayManager != null && mDisplayListenerRegistered) {
                 try {
                     mDisplayManager.unregisterDisplayListener(mDisplayListener);
                 } catch (Exception e) {
@@ -170,11 +218,14 @@ public final class DisplayBrightnessMonitor {
     }
 
     public void postBrightnessChanged(int brightness) {
-        mHandler.post(() -> handleDisplayBrightnessChanged(brightness));
+        mPendingBrightness = brightness;
+        mHandler.removeCallbacks(mDispatchRunnable);
+        mHandler.post(mDispatchRunnable);
     }
 
-    private void handleDisplayBrightnessChanged(int newValue) {
-        if (mCurrentBrightness == newValue) return;
+    private void dispatchPendingBrightness() {
+        int newValue = mPendingBrightness;
+        if (newValue < 0 || mCurrentBrightness == newValue) return;
         mCurrentBrightness = newValue;
 
         for (OnBrightnessListener l : mListeners) {
@@ -187,12 +238,38 @@ public final class DisplayBrightnessMonitor {
     }
 
     /**
-     * Queries current logical brightness mapped onto {@code [0..mMaxBacklight]}.
-     * Uses {@link DisplayManager#getBrightness(int)} first (SELinux-safe, unaffected by HBM
-     * backlight overrides), falling back to sysfs if unavailable.
+     * Queries current live backlight level mapped onto {@code [0..mMaxBacklight]}.
+     * Reads panel backlight sysfs first so slider drags and auto-brightness ramps reflect the
+     * exact instantaneous hardware backlight level, falling back to {@link Display#getBrightnessInfo()}
+     * and {@link DisplayManager#getBrightness(int)} when sysfs is inaccessible.
      */
     private int queryBrightness() {
+        int sysfsVal = readSysfsBrightness();
+        if (sysfsVal >= 0) {
+            return sysfsVal;
+        }
+
         if (mDisplayManager != null) {
+            try {
+                Display display = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY);
+                if (display != null) {
+                    BrightnessInfo info = display.getBrightnessInfo();
+                    if (info != null) {
+                        float norm = (!Float.isNaN(info.adjustedBrightness)
+                                && info.adjustedBrightness >= 0.0f)
+                                ? info.adjustedBrightness
+                                : info.brightness;
+                        if (!Float.isNaN(norm) && norm >= 0.0f) {
+                            float clamped = Math.min(1.0f, norm);
+                            mCurrentBrightnessFloat = clamped;
+                            return Math.round(clamped * mMaxBacklight);
+                        }
+                    }
+                }
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Display.getBrightnessInfo failed", e);
+            }
+
             try {
                 float norm = mDisplayManager.getBrightness(Display.DEFAULT_DISPLAY);
                 if (!Float.isNaN(norm) && norm >= 0.0f) {
@@ -201,15 +278,40 @@ public final class DisplayBrightnessMonitor {
                     return Math.round(clamped * mMaxBacklight);
                 }
             } catch (RuntimeException e) {
-                Log.w(TAG, "DisplayManager.getBrightness failed, falling back to sysfs", e);
+                Log.w(TAG, "DisplayManager.getBrightness failed", e);
             }
         }
 
-        int sysfsVal = getBrightnessFromFile();
-        if (sysfsVal >= 0) {
-            mCurrentBrightnessFloat = Math.min(1.0f, sysfsVal / Math.max(1.0f, mMaxBacklight));
+        return -1;
+    }
+
+    private void readSysfsMaxBrightness() {
+        int max = readIntFromFile(mMaxBrightnessFilePath);
+        if (max > 0) {
+            mSysfsMaxBacklight = max;
         }
-        return sysfsVal;
+    }
+
+    private int readSysfsBrightness() {
+        int raw = getBrightnessFromFile();
+        if (raw < 0) return -1;
+
+        if (mSysfsMaxBacklight <= 0.0f) {
+            readSysfsMaxBrightness();
+        }
+
+        float sysfsMax = mSysfsMaxBacklight;
+        if (sysfsMax > 0.0f) {
+            float norm = Math.max(0.0f, Math.min(1.0f, raw / sysfsMax));
+            mCurrentBrightnessFloat = norm;
+            if (Math.abs(sysfsMax - mMaxBacklight) > 0.5f) {
+                return Math.round(norm * mMaxBacklight);
+            }
+            return raw;
+        }
+
+        mCurrentBrightnessFloat = Math.max(0.0f, Math.min(1.0f, raw / Math.max(1.0f, mMaxBacklight)));
+        return raw;
     }
 
     public int getCurrentBrightness() {
@@ -226,11 +328,14 @@ public final class DisplayBrightnessMonitor {
     }
 
     public int getBrightnessFromFile() {
+        return readIntFromFile(mBrightnessFilePath);
+    }
+
+    private int readIntFromFile(String path) {
         byte[] data;
         try {
-            data = Utils.readFile(new File(mBrightnessFilePath));
+            data = Utils.readFile(new File(path));
         } catch (IOException e) {
-            Log.w(TAG, "Failed to read brightness file", e);
             return -1;
         }
         if (data == null || data.length == 0) return -1;
@@ -238,7 +343,7 @@ public final class DisplayBrightnessMonitor {
         try {
             return Integer.parseInt(new String(data, StandardCharsets.UTF_8).trim());
         } catch (NumberFormatException e) {
-            Log.w(TAG, "getBrightnessFromFile: " + e.getMessage());
+            Log.w(TAG, "readIntFromFile(" + path + "): " + e.getMessage());
             return -1;
         }
     }
