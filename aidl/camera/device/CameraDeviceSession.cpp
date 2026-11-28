@@ -10,11 +10,15 @@
 #include "CameraDeviceSession.h"
 
 #include <SamsungCameraModule.h>
+#include <VendorTagDescriptor.h>
 #include <aidl/android/hardware/camera/device/ErrorMsg.h>
 #include <aidl/android/hardware/camera/device/ShutterMsg.h>
 #include <aidlcommonsupport/NativeHandle.h>
 #include <cutils/properties.h>
 #include <cutils/trace.h>
+#include <utils/String8.h>
+
+#include <cstring>
 
 namespace android {
 namespace hardware {
@@ -134,7 +138,221 @@ bool CameraDeviceSession::initialize() {
     }
     mResultBatcher.setResultMetadataQueue(mResultMetadataQueue);
 
+    initSamsungVendorTags();
+    applySamsungParameters();
+
     return false;
+}
+
+void CameraDeviceSession::initSamsungVendorTags() {
+    sp<::android::hardware::camera::common::helper::VendorTagDescriptor> vTags =
+            ::android::hardware::camera::common::helper::VendorTagDescriptor::
+                    getGlobalVendorTagDescriptor();
+    if (vTags == nullptr) {
+        return;
+    }
+
+    const String8 secControl("samsung.android.control");
+    const String8 secUnihal("samsung.android.unihal");
+    uint32_t tag = 0;
+
+    if (vTags->lookupTag(String8("shootingMode"), secControl, &tag) == OK) {
+        mTagControlShootingMode = tag;
+    }
+    if (vTags->lookupTag(String8("liveHdrMode"), secControl, &tag) == OK) {
+        mTagControlLiveHdrMode = tag;
+    }
+    if (vTags->lookupTag(String8("cameraClient"), secControl, &tag) == OK) {
+        mTagControlCameraClient = tag;
+    }
+    if (vTags->lookupTag(String8("videoMode"), secUnihal, &tag) == OK) {
+        mTagUnihalVideoMode = tag;
+    }
+    if (vTags->lookupTag(String8("videoVdisMode"), secUnihal, &tag) == OK) {
+        mTagUnihalVideoVdisMode = tag;
+    }
+
+    ALOGD("%s: resolved Samsung tags: shootingMode=0x%x liveHdrMode=0x%x cameraClient=0x%x "
+          "videoMode=0x%x videoVdisMode=0x%x",
+          __FUNCTION__, mTagControlShootingMode, mTagControlLiveHdrMode, mTagControlCameraClient,
+          mTagUnihalVideoMode, mTagUnihalVideoVdisMode);
+}
+
+void CameraDeviceSession::applySamsungParameters() {
+#ifdef CAMERA_NEEDS_SEC_RESERVED_FIELD
+    if (mDevice == nullptr || mDevice->ops == nullptr || mDevice->ops->set_parameters == nullptr) {
+        return;
+    }
+    if (!property_get_bool("persist.vendor.camera.unihal.enable", true)) {
+        return;
+    }
+
+    char pkgName[PROPERTY_VALUE_MAX] = {};
+    property_get("persist.vendor.camera.unihal.pkg_name", pkgName, "com.instagram.android");
+    if (pkgName[0] == '\0' || strcmp(pkgName, "none") == 0) {
+        return;
+    }
+
+    std::string params = std::string("pkgName=") + pkgName + ";";
+    int rc = mDevice->ops->set_parameters(mDevice, params.c_str());
+    ALOGI("%s: set_parameters(\"%s\") -> %d", __FUNCTION__, params.c_str(), rc);
+#endif
+}
+
+bool CameraDeviceSession::applySamsungSessionParametersLocked(
+        const StreamConfiguration& requestedConfiguration, const camera_metadata_t* sessionParams,
+        ::android::hardware::camera::common::helper::CameraMetadata* outParams) {
+    mHasVideoStream = false;
+    for (const auto& stream : requestedConfiguration.streams) {
+        if (stream.streamType == StreamType::OUTPUT &&
+            ((static_cast<int64_t>(stream.usage) &
+              static_cast<int64_t>(BufferUsage::VIDEO_ENCODER)) != 0)) {
+            mHasVideoStream = true;
+            break;
+        }
+    }
+
+    if (outParams == nullptr) {
+        return false;
+    }
+
+    const bool vdisBridge = property_get_bool("persist.vendor.camera.vdis.bridge", true);
+    const int32_t liveHdrPhotoMode =
+            property_get_int32("persist.vendor.camera.live_hdr.mode", 3 /* AUTO_3P */);
+    const bool liveHdrVideo = property_get_bool("persist.vendor.camera.live_hdr.video", false);
+
+    if (!vdisBridge && liveHdrPhotoMode <= 0 && !liveHdrVideo) {
+        return false;
+    }
+
+    outParams->clear();
+    if (sessionParams != nullptr) {
+        outParams->append(sessionParams);
+    }
+
+    // Never override sessions explicitly driven by CameraX Extensions or Samsung SDK clients.
+    if (mTagControlCameraClient != 0 && outParams->exists(mTagControlCameraClient)) {
+        return false;
+    }
+
+    bool modified = false;
+
+    if (vdisBridge && mHasVideoStream) {
+        camera_metadata_entry_t vstab = outParams->find(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE);
+        const bool vstabOn =
+                (vstab.count > 0 &&
+                 (vstab.data.u8[0] == ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON ||
+                  vstab.data.u8[0] ==
+                          ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION));
+        if (vstabOn) {
+            if (mTagUnihalVideoMode != 0 && !outParams->exists(mTagUnihalVideoMode)) {
+                int32_t videoMode = 0x0a;  // UNIHAL_VIDEO_MODE_VDIS
+                outParams->update(mTagUnihalVideoMode, &videoMode, 1);
+                modified = true;
+            }
+            if (mTagUnihalVideoVdisMode != 0 && !outParams->exists(mTagUnihalVideoVdisMode)) {
+                int32_t vdisMode = 1;  // UNIHAL_VIDEO_VDIS_MODE_ON
+                outParams->update(mTagUnihalVideoVdisMode, &vdisMode, 1);
+                modified = true;
+            }
+            if (mTagControlShootingMode != 0 && !outParams->exists(mTagControlShootingMode)) {
+                int32_t shootingMode = 3;  // CONTROL_SHOOTING_MODE_VIDEO
+                outParams->update(mTagControlShootingMode, &shootingMode, 1);
+                modified = true;
+            }
+        }
+    }
+
+    if (mTagControlLiveHdrMode != 0 && !outParams->exists(mTagControlLiveHdrMode)) {
+        if (!mHasVideoStream && liveHdrPhotoMode > 0) {
+            outParams->update(mTagControlLiveHdrMode, &liveHdrPhotoMode, 1);
+            modified = true;
+        } else if (mHasVideoStream && liveHdrVideo) {
+            int32_t videoHdrMode = 4;  // CONTROL_LIVE_HDR_MODE_AUTO_3P_VIDEO
+            outParams->update(mTagControlLiveHdrMode, &videoHdrMode, 1);
+            modified = true;
+        }
+    }
+
+    return modified;
+}
+
+bool CameraDeviceSession::applySamsungCaptureRequestSettingsLocked(
+        const camera_metadata_t* requestSettings,
+        ::android::hardware::camera::common::helper::CameraMetadata* outSettings,
+        bool alreadyCopied) {
+    if (requestSettings == nullptr || outSettings == nullptr) {
+        return false;
+    }
+
+    const bool vdisBridge = property_get_bool("persist.vendor.camera.vdis.bridge", true);
+    const int32_t liveHdrPhotoMode =
+            property_get_int32("persist.vendor.camera.live_hdr.mode", 3 /* AUTO_3P */);
+    const bool liveHdrVideo = property_get_bool("persist.vendor.camera.live_hdr.video", false);
+
+    if (!vdisBridge && liveHdrPhotoMode <= 0 && !liveHdrVideo) {
+        return false;
+    }
+
+    camera_metadata_ro_entry_t roEntry;
+    if (mTagControlCameraClient != 0 &&
+        find_camera_metadata_ro_entry(requestSettings, mTagControlCameraClient, &roEntry) == 0) {
+        return false;
+    }
+
+    bool needVdis = false;
+    if (vdisBridge && mHasVideoStream &&
+        find_camera_metadata_ro_entry(requestSettings, ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
+                                      &roEntry) == 0 &&
+        roEntry.count > 0) {
+        const uint8_t mode = roEntry.data.u8[0];
+        if (mode == ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON ||
+            mode == ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION) {
+            needVdis = true;
+        }
+    }
+
+    const bool needLiveHdr =
+            (mTagControlLiveHdrMode != 0 &&
+             find_camera_metadata_ro_entry(requestSettings, mTagControlLiveHdrMode, &roEntry) !=
+                     0 &&
+             ((!mHasVideoStream && liveHdrPhotoMode > 0) || (mHasVideoStream && liveHdrVideo)));
+
+    if (!needVdis && !needLiveHdr) {
+        return false;
+    }
+
+    if (!alreadyCopied) {
+        outSettings->clear();
+        outSettings->append(requestSettings);
+    }
+
+    bool modified = false;
+    if (needVdis) {
+        if (mTagUnihalVideoMode != 0 && !outSettings->exists(mTagUnihalVideoMode)) {
+            int32_t videoMode = 0x0a;  // UNIHAL_VIDEO_MODE_VDIS
+            outSettings->update(mTagUnihalVideoMode, &videoMode, 1);
+            modified = true;
+        }
+        if (mTagUnihalVideoVdisMode != 0 && !outSettings->exists(mTagUnihalVideoVdisMode)) {
+            int32_t vdisMode = 1;  // UNIHAL_VIDEO_VDIS_MODE_ON
+            outSettings->update(mTagUnihalVideoVdisMode, &vdisMode, 1);
+            modified = true;
+        }
+        if (mTagControlShootingMode != 0 && !outSettings->exists(mTagControlShootingMode)) {
+            int32_t shootingMode = 3;  // CONTROL_SHOOTING_MODE_VIDEO
+            outSettings->update(mTagControlShootingMode, &shootingMode, 1);
+            modified = true;
+        }
+    }
+
+    if (needLiveHdr && !outSettings->exists(mTagControlLiveHdrMode)) {
+        int32_t hdrMode = mHasVideoStream ? 4 : liveHdrPhotoMode;
+        outSettings->update(mTagControlLiveHdrMode, &hdrMode, 1);
+        modified = true;
+    }
+
+    return modified;
 }
 
 bool CameraDeviceSession::shouldFreeBufEarly() {
@@ -889,14 +1107,24 @@ ndk::ScopedAStatus CameraDeviceSession::configureStreams(
     Mutex::Autolock _sccl(mStreamConfigCounterLock);
     mStreamConfigCounter = in_requestedConfiguration.streamConfigCounter;
     std::vector<camera3_stream_t*> streams;
-    stream_list.session_parameters = paramBuffer;
+    ::android::hardware::camera::common::helper::CameraMetadata sessionParamsOverride;
+    bool sessionParamsModified = applySamsungSessionParametersLocked(
+            in_requestedConfiguration, paramBuffer, &sessionParamsOverride);
+    stream_list.session_parameters =
+            sessionParamsModified ? sessionParamsOverride.getAndLock() : paramBuffer;
     if (!preProcessConfigurationLocked(in_requestedConfiguration, &stream_list, &streams)) {
+        if (sessionParamsModified) {
+            sessionParamsOverride.unlock(stream_list.session_parameters);
+        }
         return fromStatus(Status::INTERNAL_ERROR);
     }
 
     ATRACE_BEGIN("camera3->configure_streams");
     status_t ret = mDevice->ops->configure_streams(mDevice, &stream_list);
     ATRACE_END();
+    if (sessionParamsModified) {
+        sessionParamsOverride.unlock(stream_list.session_parameters);
+    }
 
     // In case Hal returns error most likely it was not able to release
     // the corresponding resources of the deleted streams.
@@ -1218,6 +1446,7 @@ Status CameraDeviceSession::processOneCaptureRequest(const CaptureRequest& reque
     std::vector<camera3_stream_buffer_t> outHalBufs;
     outHalBufs.resize(numOutputBufs);
     bool aeCancelTriggerNeeded = false;
+    bool settingsModified = false;
     ::android::hardware::camera::common::helper::CameraMetadata settingsOverride;
     {
         Mutex::Autolock _l(mInflightLock);
@@ -1251,7 +1480,11 @@ Status CameraDeviceSession::processOneCaptureRequest(const CaptureRequest& reque
                 halRequest, &settingsOverride /*out*/, &triggerOverride /*out*/);
         if (aeCancelTriggerNeeded) {
             mInflightAETriggerOverrides[halRequest.frame_number] = triggerOverride;
-            halRequest.settings = settingsOverride.getAndLock();
+            settingsModified = true;
+        }
+        if (applySamsungCaptureRequestSettingsLocked(halRequest.settings, &settingsOverride,
+                                                     settingsModified)) {
+            settingsModified = true;
         }
     }
 
@@ -1303,11 +1536,15 @@ Status CameraDeviceSession::processOneCaptureRequest(const CaptureRequest& reque
     halRequest.physcam_id = physicalCameraIds.data();
     halRequest.physcam_settings = physicalCameraSettings.data();
 
+    if (settingsModified) {
+        halRequest.settings = settingsOverride.getAndLock();
+    }
+
     ATRACE_ASYNC_BEGIN("frame capture", request.frameNumber);
     ATRACE_BEGIN("camera3->process_capture_request");
     status_t ret = mDevice->ops->process_capture_request(mDevice, &halRequest);
     ATRACE_END();
-    if (aeCancelTriggerNeeded) {
+    if (settingsModified) {
         settingsOverride.unlock(halRequest.settings);
     }
     if (ret != OK) {

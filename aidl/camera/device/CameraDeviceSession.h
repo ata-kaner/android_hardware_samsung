@@ -374,6 +374,24 @@ class CameraDeviceSession : public BnCameraDeviceSession, protected camera3_call
             const AETriggerCancelOverride& aeTriggerCancelOverride,
             ::android::hardware::camera::common::helper::CameraMetadata* settings /*out*/);
 
+    void initSamsungVendorTags();
+    void applySamsungParameters();
+    bool applySamsungSessionParametersLocked(
+            const StreamConfiguration& requestedConfiguration,
+            const camera_metadata_t* sessionParams,
+            ::android::hardware::camera::common::helper::CameraMetadata* outParams);
+    bool applySamsungCaptureRequestSettingsLocked(
+            const camera_metadata_t* requestSettings,
+            ::android::hardware::camera::common::helper::CameraMetadata* outSettings,
+            bool alreadyCopied);
+
+    uint32_t mTagControlShootingMode = 0;
+    uint32_t mTagControlLiveHdrMode = 0;
+    uint32_t mTagControlCameraClient = 0;
+    uint32_t mTagUnihalVideoMode = 0;
+    uint32_t mTagUnihalVideoVdisMode = 0;
+    bool mHasVideoStream = false;
+
     /**
      * Static callback forwarding methods from HAL to instance
      */

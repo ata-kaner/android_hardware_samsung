@@ -9,7 +9,13 @@
 #include "CameraDevice.h"
 #include "convert.h"
 
+#include <VendorTagDescriptor.h>
+#include <cutils/properties.h>
 #include <cutils/trace.h>
+#include <utils/String8.h>
+
+#include <algorithm>
+#include <vector>
 
 namespace android {
 namespace hardware {
@@ -77,6 +83,30 @@ ndk::ScopedAStatus CameraDevice::getCameraCharacteristics(CameraMetadata* _aidl_
                 metadata.update(ANDROID_FLASH_INFO_STRENGTH_DEFAULT_LEVEL, &defaultTorchStrength,
                                 1);
                 metadata.update(ANDROID_FLASH_INFO_STRENGTH_MAXIMUM_LEVEL, &torchStrengthLevels, 1);
+            }
+
+            if (property_get_bool("persist.vendor.camera.vdis.advertise", true)) {
+                sp<common::helper::VendorTagDescriptor> vTags =
+                        common::helper::VendorTagDescriptor::getGlobalVendorTagDescriptor();
+                uint32_t vdisTag = 0;
+                if (vTags != nullptr &&
+                    vTags->lookupTag(String8("videoVdisMode"),
+                                     String8("samsung.android.unihal"), &vdisTag) == OK) {
+                    camera_metadata_entry_t vstabEntry =
+                            metadata.find(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+                    std::vector<uint8_t> modes;
+                    if (vstabEntry.count > 0) {
+                        modes.assign(vstabEntry.data.u8, vstabEntry.data.u8 + vstabEntry.count);
+                    } else {
+                        modes.push_back(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_OFF);
+                    }
+                    if (std::find(modes.begin(), modes.end(),
+                                  ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON) == modes.end()) {
+                        modes.push_back(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE_ON);
+                        metadata.update(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES,
+                                        modes.data(), modes.size());
+                    }
+                }
             }
 
             convertToAidl(metadata.release(), _aidl_return);

@@ -3534,8 +3534,21 @@ typedef struct camera3_device_ops {
                                        const camera_metadata_t* old_session_params,
                                        const camera_metadata_t* new_session_params);
 
+#ifdef CAMERA_NEEDS_SEC_RESERVED_FIELD
+    /**
+     * set_parameters:
+     *
+     * Samsung HAL3 / UniHAL extension at camera3_device_ops_t slot [10].
+     * Passes semicolon-delimited SamsungExtraData key=value pairs (e.g. "pkgName=...;").
+     */
+    int (*set_parameters)(const struct camera3_device*, const char* parameters);
+
+    /* reserved for future use */
+    void* reserved[5];
+#else
     /* reserved for future use */
     void* reserved[6];
+#endif
 } camera3_device_ops_t;
 
 /**********************************************************************
