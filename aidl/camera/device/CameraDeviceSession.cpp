@@ -187,8 +187,14 @@ void CameraDeviceSession::applySamsungParameters() {
         return;
     }
 
+    // Default to a VIP SIE-only package ("com.facebook.katana" in UniHAL's
+    // GetSupported3rdPartySieVipList) rather than a 3RD_PARTY_COMBINATION app
+    // like Instagram: this enables multi-frame SIE-HDR/LLS on all cameras
+    // (0x10008, cameraId=0xffff) for still capture with bypass preview, while
+    // selecting 3RD_PARTY_BYPASS (0x1000d) for video recording so CamX writes
+    // UBWC frames directly to the video encoder without FUNC_SCALER lockYCbCr.
     char pkgName[PROPERTY_VALUE_MAX] = {};
-    property_get("persist.vendor.camera.unihal.pkg_name", pkgName, "com.instagram.android");
+    property_get("persist.vendor.camera.unihal.pkg_name", pkgName, "com.facebook.katana");
     if (pkgName[0] == '\0' || strcmp(pkgName, "none") == 0) {
         return;
     }
