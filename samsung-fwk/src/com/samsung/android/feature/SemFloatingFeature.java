@@ -12,9 +12,11 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Hashtable;
 
 public final class SemFloatingFeature implements IFloatingFeature {
@@ -133,7 +135,16 @@ public final class SemFloatingFeature implements IFloatingFeature {
             return;
         }
 
-        try (FileInputStream fis = new FileInputStream(file)) {
+        try (InputStream fis = new BufferedInputStream(new FileInputStream(file))) {
+            // Skip UTF-8 BOM (0xEF 0xBB 0xBF) if present; stock Samsung floating_feature.xml includes it.
+            fis.mark(3);
+            int b0 = fis.read();
+            int b1 = fis.read();
+            int b2 = fis.read();
+            if (!(b0 == 0xEF && b1 == 0xBB && b2 == 0xBF)) {
+                fis.reset();
+            }
+
             XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
             factory.setNamespaceAware(true);
 
